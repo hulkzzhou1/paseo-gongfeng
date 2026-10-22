@@ -27,7 +27,9 @@ function normalizeRemote(value: string, siteUrl: string): string | null {
   try {
     const scp = value.match(/^(?:[^@\s]+@)?([^/:\s]+):([^\s]+)$/);
     const url = new URL(scp && !value.includes("://") ? `ssh://${scp[1]}/${scp[2]}` : value);
-    if (!["ssh:", "https:", "http:"].includes(url.protocol) || url.hostname !== new URL(siteUrl).hostname || (url.protocol === "ssh:" ? !!url.port && url.port !== "22" : url.origin !== siteUrl)) return null;
+    // Existing HTTP remotes identify legacy checkouts; API credentials still use HTTPS.
+    const legacyHttp = siteUrl === legacySite && url.protocol === "http:" && !url.port;
+    if (!["ssh:", "https:", "http:"].includes(url.protocol) || url.hostname !== new URL(siteUrl).hostname || (url.protocol === "ssh:" ? !!url.port && url.port !== "22" : !legacyHttp && url.origin !== siteUrl)) return null;
     const path = decodeURIComponent(url.pathname).replace(/^\/+|\/+$/g, "").replace(/\.git$/, "");
     return url.protocol === "ssh:" ? path : path.replace(/^git\//, "");
   } catch { return null; }

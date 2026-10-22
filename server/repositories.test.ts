@@ -82,6 +82,26 @@ test("HTTPS /git/、SSH URL及子组大小写只提供候选，不能静默选�
   execFileSync("git", ["-C", projects[1].projectRootPath, "remote", "set-url", "origin", "git@git.woa.com:group/Sub/Repo.git"]);
   result = await rpc(listRepositoryBindings, { repositoryId: 12 }); assert(result.ok); assert.deepEqual(result.projects.map(p => p.matches), [true, false]);
 });
+
+test("旧HTTP remote的关联重载后仍有效，API请求继续使用HTTPS", async () => {
+  mock.method(globalThis, "fetch", async (url: string | URL | Request) => {
+    assert.equal(new URL(String(url)).origin, "https://git.woa.com");
+    return String(url).endsWith("/user") ? Response.json({ id: 7, username: "test", name: "Test" }) : Response.json(remote);
+  });
+  await rpc(bindRepository, { repositoryId: 12, projectId: "project-a" });
+  execFileSync("git", ["-C", projects[0].projectRootPath, "remote", "set-url", "origin", "http://git.woa.com/git/Group/Sub/Repo.git"]);
+  execFileSync("git", ["-C", projects[1].projectRootPath, "remote", "set-url", "origin", "http://git.woa.com/Group/Sub/Repo.git"]);
+  stop(); start();
+  const result = await rpc(listRepositoryBindings, { repositoryId: 12 }); assert(result.ok);
+  assert.equal(result.bindings[0].status, "valid");
+  assert.deepEqual(result.projects.map(project => project.matches), [true, true]);
+  for (const value of ["http://git.woa.com:8080/Group/Sub/Repo.git", "http://other.example/Group/Sub/Repo.git", "http://git.woa.com/Other/Repo.git"]) {
+    execFileSync("git", ["-C", projects[0].projectRootPath, "remote", "set-url", "origin", value]);
+    const invalid = await rpc(listRepositoryBindings, { repositoryId: 12 }); assert(invalid.ok);
+    assert.equal(invalid.bindings[0].status, "remote_changed", value);
+    assert.equal(invalid.projects[0].matches, false, value);
+  }
+});
 test("搜索区分分页、空结果与工蜂权限错误", async () => {
   mock.method(globalThis, "fetch", async (url: string | URL | Request) => {
     if (String(url).endsWith("/user")) return Response.json({ id: 7, username: "test", name: "Test" });
