@@ -89,7 +89,7 @@ function AddRepository({ theme, onAdded }: { theme: PluginScreenProps["theme"]; 
       </View> : null}
     </View>
     {notice ? <Text accessibilityLiveRegion="polite" style={styles.text}>{notice}</Text> : null}
-    <Action theme={theme} primary label={save.isPending ? "添加中…" : "添加到仓库列表"} disabled={save.isPending || !current || !choices.some(r => String(r.id) === selected)} onPress={() => save.mutate()} />
+    <View style={styles.toolbar}><Action theme={theme} primary label={save.isPending ? "添加中…" : "添加到仓库列表"} disabled={save.isPending || !current || !choices.some(r => String(r.id) === selected)} onPress={() => save.mutate()} /></View>
   </View>;
 }
 
@@ -110,8 +110,8 @@ function AssociateRepository({ theme, params, repositoryId, repositoryPath, onCl
   return <Modal title="关联 Paseo 项目" open onOpenChange={open => { if (!open && !busy) onClose(); }}><Modal.Content>
     <Text selectable style={[styles.text, { fontWeight: "600" }]}>{repositoryPath}</Text>
     <SettingsCard><SettingsSelect label="Paseo 项目" value={projectId} disabled={busy || !data} options={[{ value: "", label: "请选择项目" }, ...(data?.projects ?? []).map(p => ({ value: p.id, label: `${p.matches ? "匹配候选 · " : ""}${p.name} · ${p.rootPath}` }))]} onValueChange={value => { setProjectId(value); setReplaceId(undefined); setNotice(""); }} /></SettingsCard>
-    <Action theme={theme} primary label={save.isPending ? "保存中…" : "保存关联"} disabled={!projectId || busy || !data?.projects.some(p => p.id === projectId)} onPress={() => save.mutate(undefined)} />
-    {replaceId ? <Action theme={theme} label="确认更换现有关联" disabled={busy} onPress={() => save.mutate(replaceId)} /> : null}
+    <View style={styles.toolbar}><Action theme={theme} primary label={save.isPending ? "保存中…" : "保存关联"} disabled={!projectId || busy || !data?.projects.some(p => p.id === projectId)} onPress={() => save.mutate(undefined)} /></View>
+    {replaceId ? <View style={styles.toolbar}><Action theme={theme} label="确认更换现有关联" disabled={busy} onPress={() => save.mutate(replaceId)} /></View> : null}
     {notice ? <Text accessibilityLiveRegion="polite" style={styles.text}>{notice}</Text> : null}
     <View style={styles.toolbar}><Text style={[styles.text, { flex: 1, fontWeight: "600" }]}>已关联项目</Text><Action theme={theme} label="刷新关联" disabled={relations.isFetching || busy} onPress={refresh} /></View>
     {relations.isPending ? <Text style={styles.muted}>正在核验项目…</Text> : relations.isError || relations.data && !relations.data.ok ? <Text style={styles.text}>{relations.data && !relations.data.ok ? errorText(relations.data.error) : "关联读取失败，请刷新。"}</Text> : null}
@@ -120,9 +120,9 @@ function AssociateRepository({ theme, params, repositoryId, repositoryPath, onCl
       <Text style={styles.text}>{data.projects.find(p => p.id === binding.projectId)?.name ?? binding.projectId}</Text>
       <Text selectable style={styles.muted}>{data.projects.find(p => p.id === binding.projectId)?.rootPath ?? binding.projectId}</Text>
       <Text style={styles.muted}>{binding.status === "valid" ? "已核验" : binding.status === "project_missing" ? "项目已失效" : binding.status === "remote_changed" ? "本地 remote 不匹配" : `需核验：${errorText(binding.error ?? "service_error")}`}</Text>
-      <Action theme={theme} label="解除关联" disabled={busy} onPress={() => remove.mutate(binding.projectId)} />
+      <View style={styles.toolbar}><Action theme={theme} label="解除关联" disabled={busy} onPress={() => remove.mutate(binding.projectId)} /></View>
     </View>)}
-    <Action theme={theme} label={cloning ? "收起克隆选项" : "没有本地项目？克隆并创建"} onPress={() => setCloning(value => !value)} />
+    <View style={styles.toolbar}><Action theme={theme} label={cloning ? "收起克隆选项" : "没有本地项目？克隆并创建"} onPress={() => setCloning(value => !value)} /></View>
     <View style={{ display: cloning ? "flex" : "none" }}><CloneRepository repositoryId={repositoryId} theme={theme} /></View>
   </Modal.Content></Modal>;
 }

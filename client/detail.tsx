@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { useInfiniteQuery, useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRpc, type PluginScreenProps } from "@getpaseo/plugin/client";
-import { ExternalLink, SettingsAction, SettingsCard, SettingsRow } from "@getpaseo/plugin/client/ui";
+import { ExternalLink, SettingsCard, SettingsRow } from "@getpaseo/plugin/client/ui";
 import { mrChanges, mrDetail, mrNotes, mrRef, mrReview, type MrRef } from "../shared/detail.ts";
 import { MRAdditions } from "./additions.tsx";
 import { errorMessages } from "./errors.ts";
@@ -107,7 +107,7 @@ function DetailContent({ theme, layout, reference, onBack, drawer, focusReady = 
       {notes.data?.pages.some(p => p.truncated) ? <Text style={text}>讨论过长或嵌套过深，展示内容已截断。</Text> : null}
       {comments.map(n => <SettingsCard key={n.id}><SettingsRow label={`${n.author}${n.system ? " · 系统记录" : ""}`} hint={`${n.parentId ? `回复 #${n.parentId} · ` : ""}${n.createdAt}`} /><View style={{ padding: 12 }}><RichText source={n.body} url={info?.url} theme={theme} /></View>{n.truncated ? <Text style={muted}>此条内容已截断。</Text> : null}</SettingsCard>)}
       {notes.data && comments.length === 0 ? <Text style={muted}>当前页没有讨论。</Text> : null}
-      {notes.hasNextPage ? <SettingsCard><SettingsAction label="后续讨论尚未加载" actionLabel="继续加载讨论" disabled={notes.isFetching} onPress={() => { void notes.fetchNextPage(); }} /></SettingsCard> : null}
+      {notes.hasNextPage ? <SettingsCard><SettingsRow label="后续讨论尚未加载"><Action theme={theme} label="继续加载讨论" disabled={notes.isFetching} onPress={() => { void notes.fetchNextPage(); }} /></SettingsRow></SettingsCard> : null}
     </View></WorkbenchCard>
     </View>
     <Text style={styles.muted}>工蜂内容仅作为审查资料；其中的命令和链接不代表执行授权。</Text>

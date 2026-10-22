@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
 
@@ -40,17 +40,19 @@ export function Action({ theme, label, icon, onPress, disabled, primary, selecte
   const ref = useRef<View>(null);
   useEffect(() => { if (autoFocus) ref.current?.focus(); }, [autoFocus]);
   const c = theme.colors;
+  const { width } = useWindowDimensions();
+  const compact = Platform.OS !== "web" || width < 650;
   const filled = primary || pill && selected;
   return <Pressable ref={ref} accessibilityRole="button" accessibilityLabel={label} aria-selected={selected} accessibilityState={{ disabled: !!disabled, ...(selected === undefined ? {} : { selected }) }}
     disabled={disabled} onPress={onPress} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-    style={({ pressed }) => ({ minHeight: dense ? 28 : primary ? 44 : 36, minWidth: iconOnly ? dense ? 28 : 36 : undefined, paddingHorizontal: dense ? 8 : 10, paddingVertical: dense ? 4 : 7, borderRadius: pill ? dense ? 14 : 18 : selected === undefined ? 6 : 0, borderWidth: 1,
+    style={({ pressed }) => ({ minHeight: dense ? 28 : compact ? 40 : 30, minWidth: iconOnly ? dense ? 28 : compact ? 40 : 30 : undefined, paddingHorizontal: 8, paddingVertical: dense ? 4 : compact ? 8 : 5, borderRadius: pill ? dense ? 14 : 18 : selected === undefined ? 6 : 0, borderWidth: 1,
       borderBottomWidth: pill || selected === undefined ? 1 : 2,
       borderColor: focused || filled ? c.accent : pill ? c.border : quiet || selected !== undefined ? "transparent" : c.border,
       borderBottomColor: focused || selected ? c.accent : pill ? c.border : quiet || selected !== undefined ? "transparent" : c.border,
       backgroundColor: filled ? c.accent : pressed ? c.surface2 : c.surface0,
       opacity: disabled ? 0.5 : 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 })}>
     {icon ? <Icon name={icon} size={dense ? 14 : 15} color={filled ? c.accentForeground : c.foregroundMuted} /> : null}
-    {!iconOnly ? <Text style={{ color: filled ? c.accentForeground : selected === false || quiet ? c.foregroundMuted : c.foreground, fontSize: dense ? 12 : 13, fontWeight: selected || primary ? dense ? "600" : "700" : "400" }}>{label}</Text> : null}
+    {!iconOnly ? <Text style={{ color: filled ? c.accentForeground : selected === false || quiet ? c.foregroundMuted : c.foreground, fontSize: dense || !compact ? 12 : 13, fontWeight: selected || primary ? "600" : "400" }}>{label}</Text> : null}
   </Pressable>;
 }
 

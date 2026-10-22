@@ -3,7 +3,8 @@ import { useState } from "react";
 import { Text, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRpc, type PluginScreenProps } from "@getpaseo/plugin/client";
-import { SettingsAction, SettingsCard, SettingsInput, SettingsRow, SettingsSection } from "@getpaseo/plugin/client/ui";
+import { SettingsCard, SettingsInput, SettingsRow, SettingsSection } from "@getpaseo/plugin/client/ui";
+import { Action } from "./workbench-ui.tsx";
 import { cloneRepository, listCloneOperations } from "../shared/clone.ts";
 
 export function CloneRepository({ repositoryId, theme }: { repositoryId?: number; theme: PluginScreenProps["theme"] }) {
@@ -18,12 +19,12 @@ export function CloneRepository({ repositoryId, theme }: { repositoryId?: number
   return <SettingsSection title="克隆并创建 Paseo 项目" info="使用本机已有 SSH 权限。目标父目录必须存在，目标目录必须尚不存在；克隆不使用 OpenAPI Token，不自动下载 LFS 对象或子模块。">
     <SettingsCard>
       <SettingsInput label="本机目标绝对路径" initialValue="" placeholder="/path/to/workspaces/repository" onChangeText={setTargetPath} />
-      <SettingsAction label={repositoryId ? `克隆选中仓库 #${repositoryId}` : "请先在上方选择工蜂仓库"} hint={targetPath || "填写将要创建的目录"} actionLabel={create.isPending ? "处理中…" : "克隆并关联"} disabled={!repositoryId || !targetPath.trim() || create.isPending} onPress={() => { if (repositoryId) create.mutate({ siteUrl, repositoryId, targetPath }); }} />
-      <SettingsAction label="克隆进度与恢复记录" actionLabel="刷新" disabled={history.isFetching} onPress={() => void history.refetch()} />
+      <SettingsRow label={repositoryId ? `克隆选中仓库 #${repositoryId}` : "请先在上方选择工蜂仓库"} hint={targetPath || "填写将要创建的目录"}><Action theme={theme} primary label={create.isPending ? "处理中…" : "克隆并关联"} disabled={!repositoryId || !targetPath.trim() || create.isPending} onPress={() => { if (repositoryId) create.mutate({ siteUrl, repositoryId, targetPath }); }} /></SettingsRow>
+      <SettingsRow label="克隆进度与恢复记录"><Action theme={theme} label="刷新" disabled={history.isFetching} onPress={() => void history.refetch()} /></SettingsRow>
       {history.isPending ? <SettingsRow label="正在读取克隆记录…" /> : history.isError || (history.data && !history.data.ok) ? <SettingsRow label="无法读取克隆记录，请刷新后重试" /> : null}
       {history.data?.ok && history.data.operations.filter(operation => repositoryId === undefined || operation.repositoryId === repositoryId).map(operation => <View key={operation.id}>
         <SettingsRow label={`仓库 #${operation.repositoryId} · ${stageText[operation.stage]}`} hint={`${operation.targetPath}${operation.projectId ? `\nPaseo 项目：${operation.projectId}` : ""}${operation.error ? `\n${cloneErrorText(operation.error)}` : ""}`} />
-        {operation.stage === "cloned" || operation.stage === "registered" ? <SettingsAction label="继续登记或关联，保留现有代码" actionLabel="恢复" disabled={create.isPending} onPress={() => create.mutate({ siteUrl, repositoryId: operation.repositoryId, targetPath: operation.targetPath })} /> : null}
+        {operation.stage === "cloned" || operation.stage === "registered" ? <SettingsRow label="继续登记或关联，保留现有代码"><Action theme={theme} label="恢复" disabled={create.isPending} onPress={() => create.mutate({ siteUrl, repositoryId: operation.repositoryId, targetPath: operation.targetPath })} /></SettingsRow> : null}
         {operation.stage === "reserved" || operation.stage === "cloning" ? <SettingsRow label="若克隆已中断，请保留此目录并选择新的目标位置。" /> : null}
       </View>)}
     </SettingsCard>

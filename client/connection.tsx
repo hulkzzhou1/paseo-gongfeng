@@ -93,7 +93,7 @@ export function ConnectionSettings({ theme, layout }: PluginSurfaceProps) {
       <SettingsInput ref={input} label="Private Token" secureTextEntry disabled={save.isPending}
         placeholder="新站点请输入对应 Token" hint="按站点仅在服务端保存，不回显。提交后清空输入框。"
         onChangeText={text => setHasInput(text.trim().length > 0)} /></SettingsCard>
-      <View style={{ alignItems: layout.compact ? "stretch" : "flex-end" }}><Action theme={theme} primary label={save.isPending ? "正在验证…" : "验证并保存"}
+      <View style={{ alignItems: "flex-end" }}><Action theme={theme} primary label={save.isPending ? "正在验证…" : "验证并保存"}
         disabled={!siteUrlSchema.safeParse(siteValue).success || (!hasInput && siteValue === savedSite) || save.isPending || status.isFetching} onPress={() => {
           if (hasInput && !tokenSchema.safeParse(input.current?.getText()).success) { setNotice("请输入有效 Token，不要包含换行或空格。"); return; }
           save.mutate();

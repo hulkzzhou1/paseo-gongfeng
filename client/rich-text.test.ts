@@ -40,6 +40,7 @@ test("相对链接、HTML 格式和 Markdown 图片链接可读；未知标签�
   const link = tokens.find(t => t.kind === "link"); assert(link?.kind === "link");
   assert.equal(link.href, "https://code.example.com/result"); assert.equal(link.children[0].kind, "image");
   assert(!tokens.some(t => t.kind === "text" && t.text.includes("<span>")));
+  assert.deepEqual(richInline("<strong>outer <strong>inner</strong> tail</strong>"), [{ kind: "strong", children: [{ kind: "text", text: "outer " }, { kind: "strong", children: [{ kind: "text", text: "inner" }] }, { kind: "text", text: " tail" }] }]);
 });
 
 test("未闭合的大段 Markdown 和 HTML 不阻塞正文解析", () => {
@@ -48,4 +49,23 @@ test("未闭合的大段 Markdown 和 HTML 不阻塞正文解析", () => {
     assert(Array.isArray(richInline(source, base)));
   }
   assert(performance.now() - start < 1500, "malformed inline input must not stall rendering");
+});
+
+test("多段 HTML pre 保留代码边界，行内代码中的 pre 不变成块或图片", () => {
+  const body = 'before\n\n<img src="https://example.com/hidden.png">\nafter';
+  assert.deepEqual(richBlocks('<pre><code>' + body + '</code></pre>'), [{ kind: "code", text: body }]);
+  const inline = '使用 `<pre><img src="https://example.com/code.png"></pre>` 示例';
+  assert.deepEqual(richBlocks(inline), [{ kind: "paragraph", text: inline }]);
+  assert.deepEqual(richInline(richBlocks(inline)[0].text, base).map(t => t.kind), ["text", "code", "text"]);
+  assert.deepEqual(richBlocks('```html\n<pre>\n\n<img src="https://example.com/code.png">\n</pre>\n```'), [{ kind: "code", text: '<pre>\n\n<img src="https://example.com/code.png">\n</pre>', marker: "html" }]);
+});
+
+test("正文上限内的未闭合 pre 和错误类型闭合不会反复扫描后缀", () => {
+  const start = performance.now();
+  for (let i = 0; i < 8; i++) {
+    assert.equal(richBlocks("<pre>".repeat(20000))[0].kind, "code");
+    assert.deepEqual(richBlocks("<!--".repeat(25000)), []);
+    assert.deepEqual(richInline("<strong>".repeat(12499) + "</em>"), []);
+  }
+  assert(performance.now() - start < 1000, "repeated renders of bounded malformed text must stay responsive");
 });
