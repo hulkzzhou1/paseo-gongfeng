@@ -10,6 +10,16 @@ export function widenDescriptionDialog(node: unknown): () => void {
   return () => { dialog.style.width = width; dialog.style.maxWidth = maxWidth; };
 }
 
+export function sizeReviewerDialog(node: unknown): () => void {
+  const root = node as { closest?(selector: string): { style: { width: string; maxWidth: string; height: string; maxHeight: string } } | null } | null;
+  const dialog = root?.closest?.('[role="dialog"]');
+  if (!dialog) return () => {};
+  // shortcut: Paseo 0.12 fixes bounded modals at 85%; replace when the SDK exposes modal sizing.
+  const { width, maxWidth, height, maxHeight } = dialog.style;
+  Object.assign(dialog.style, { width: "calc(100vw - 48px)", maxWidth: "720px", height: "min(560px, calc(100dvh - 48px))", maxHeight: "calc(100dvh - 48px)" });
+  return () => { Object.assign(dialog.style, { width, maxWidth, height, maxHeight }); };
+}
+
 interface FocusElement {
   focus(): void;
   isConnected: boolean;

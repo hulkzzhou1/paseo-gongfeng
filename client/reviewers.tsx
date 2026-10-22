@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRpc } from "@getpaseo/plugin/client";
@@ -9,6 +9,7 @@ import { mrReview } from "../shared/detail.ts";
 import { reviewerReference, saveReviewers, searchReviewers } from "../shared/reviewers.ts";
 import { ReviewerAvatar } from "./reviewer-avatar.tsx";
 import { selectReviewer, reviewRuleText, reviewerDropdown, type ReviewerDraft } from "./reviewers-draft.ts";
+import { sizeReviewerDialog } from "./web.ts";
 import { errorMessages } from "./errors.ts";
 import { Action, workbenchStyles, type Theme } from "./workbench-ui.tsx";
 
@@ -42,6 +43,7 @@ export function EditReviewers({ theme, reference, review, onClose, onSaved }: {
   const busy = mutation.isPending;
   const [showRules, setShowRules] = useState(false);
   const root = useRef<View>(null), ordinaryTrigger = useRef<View>(null), necessaryTrigger = useRef<View>(null);
+  useLayoutEffect(() => sizeReviewerDialog(root.current), []);
   const [placement, setPlacement] = useState<{ top?: number; bottom?: number; left: number; width: number; maxHeight: number }>();
   const openRequest = useRef(0);
   const closeDropdown = () => { openRequest.current++; setActiveGroup(null); };

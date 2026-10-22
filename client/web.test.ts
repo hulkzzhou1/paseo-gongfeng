@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { containDrawerFocus, widenDescriptionDialog } from "./web.ts";
+import { containDrawerFocus, widenDescriptionDialog, sizeReviewerDialog } from "./web.ts";
 
 test("description widens only its own host dialog and restores host sizing", () => {
   const dialog = { style: { width: "", maxWidth: "" } };
@@ -34,4 +34,14 @@ test("drawer wraps keyboard focus, yields to nested dialogs and restores the sou
     assert.equal(closed, true);
     release(); assert.equal(listener, undefined); assert.equal(active, row);
   } finally { if (previousDocument === undefined) delete global.document; else global.document = previousDocument; }
+});
+
+test("reviewer dialog is wider and bounded in height, restores host defaults and leaves native unchanged", () => {
+  const original = { width: "100%", maxWidth: "520px", height: "85%", maxHeight: "90%" };
+  const dialog = { style: { ...original } };
+  const restore = sizeReviewerDialog({ closest: (selector: string) => selector === '[role="dialog"]' ? dialog : null });
+  assert.deepEqual(dialog.style, { width: "calc(100vw - 48px)", maxWidth: "720px", height: "min(560px, calc(100dvh - 48px))", maxHeight: "calc(100dvh - 48px)" });
+  restore(); assert.deepEqual(dialog.style, original);
+  assert.doesNotThrow(() => sizeReviewerDialog(null)());
+  assert.doesNotThrow(() => sizeReviewerDialog({})());
 });
