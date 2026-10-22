@@ -1,0 +1,40 @@
+{
+  "name": "paseo-gongfeng",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Paseo workbench for Gongfeng repositories and merge request reviews",
+  "files": [
+    "paseo-plugin.json",
+    "OVERVIEW.md",
+    "index.client.tsx",
+    "index.server.ts",
+    "client/",
+    "server/",
+    "shared/",
+    "!**/*.test.ts"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test server/*.test.ts scripts/*.test.ts client/*.test.ts",
+    "check:status": "node scripts/check-status.ts",
+    "check": "npm run check:status && npm run typecheck && npm test",
+    "hooks:install": "node scripts/install-hooks.ts",
+    "diagnose:process": "node scripts/process-status.ts"
+  },
+  "devDependencies": {
+    "@getpaseo/plugin": "0.12.0",
+    "@tanstack/react-query": "^5.90.11",
+    "@types/node": "^24.0.0",
+    "@types/react": "~19.2.0",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "typescript": "^5.9.3",
+    "zod": "^4.4.3"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hulkzzhou1/paseo-gongfeng.git"
+  }
+}

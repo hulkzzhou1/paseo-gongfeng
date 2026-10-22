@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+gongfeng_root=$(git rev-parse --show-toplevel)
+# Tests create temporary repositories; inherited Git paths must not select this one.
+unset $(git rev-parse --local-env-vars)
+cd "$gongfeng_root"
+exec npm run check </dev/null

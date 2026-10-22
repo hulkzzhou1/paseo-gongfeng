@@ -1,0 +1,55 @@
+# Paseo 工蜂工作台
+
+在 Paseo 中管理工蜂仓库和合并请求，并将固定版本的 MR 派发给 Agent Review。设置工蜂站点地址与 Private Token 后，即可搜索仓库、关联本地 Paseo 项目、查看当前及历史 MR。
+
+当前为源码预览版，要求站点兼容本插件使用的工蜂 OpenAPI v3。自定义地址解决连接目标配置，不保证不同部署版本的接口完全一致；公网 SaaS 的真实账号完整链路尚未验收。
+
+## 功能
+
+- MR 看板：我创建／我参与评审，开放／已合入／已关闭／全部状态，按关联仓库筛选，显示所有者账号。
+- 悬浮详情抽屉：描述摘要与宽弹窗、带行号的代码差异、讨论、TAPD 关联及 CI 检查摘要。权限不足或不支持的能力单独提示。
+- 仓库管理：搜索添加仓库，每条仓库关联具体 Paseo 项目，或克隆并登记为新项目。每个项目最多关联一个仓库，同一仓库可关联多份本地项目。
+- Review：选择项目与 Agent 预设，在独立目录获取固定版本；明确选择后可降级为仅 diff 审查。历史与恢复入口保留已有资源，避免重复创建。
+- 自定义站点：填写 HTTPS 根地址，凭据、关联与操作历史按站点保存。每次使用一个站点，各授权客户端共用该站点身份。
+
+插件直接调用 OpenAPI，不使用工蜂 MCP；不评论、批准、合入 MR 或触发远程流水线。模型调用、独立目录和宿主工作区由用户的 Paseo 环境承担。
+
+## 安装与配置
+
+验证基线为 Paseo 0.12.0，要求本机 Git、Paseo CLI，以及 daemon 能访问所填工蜂站点。插件属于可信代码，在 daemon 和客户端运行，安装前请审阅源码。
+
+在已启用插件的 daemon 中安装：
+
+```sh
+paseo plugin install github:hulkzzhou1/paseo-gongfeng --ref main
+```
+
+1. 打开工作台右上角“工蜂设置”，填写站点根地址（例如 `https://code.example.com`），不含 `/api/v3` 或仓库路径。
+2. 输入该站点的 Private Token，点击“验证并保存”。新站点必须提供自己的 Token；已保存站点可留空复用对应凭据。验证失败保留原配置。
+3. 打开“仓库管理”，搜索并添加仓库，再关联本地项目。自动匹配只作为候选，需明确选择项目。
+4. 打开 MR 详情查看差异或准备 Review，逐次选择现有 Agent 预设并确认启动。
+
+Token 只保存在服务器，不回显到客户端，也不作为 Git 凭据。克隆和完整 Review 使用该站点主机的 Git SSH 地址及标准 SSH 端口，需要独立配置非交互 SSH 认证与主机密钥。自定义 SSH 主机或端口尚未提供配置。
+
+## 数据与限制
+
+凭据位于 `$PASEO_HOME/secrets/gongfeng-workbench/private-token`，目录权限 0700、文件 0600；仓库关联、克隆及 Review 记录位于对应 `plugin-data/gongfeng-workbench`。旧安装自动将已有数据识别为原站点数据。切换站点保留各自记录，不向新地址发送旧站点 Token，不跟随 API 重定向。
+
+子模块与 LFS 不自动下载，检测到时不将仓库当作完整代码；可明确选择 diff 模式。CI 仅显示提交检查摘要，不承诺完整流水线日志。TAPD 链接只在已知映射的部署中生成，其他站点保留数据并提示链接不可用。描述支持基础 Markdown，代码差异提供增删着色，没有语言语法高亮。
+
+失败产生的目录、工作区和 Agent 会保留供核验与恢复；解除关联保留代码与历史。完整原生手机端与所有部署版本未验收；本项目尚未申请 Paseo 插件目录收录。
+
+## 开发
+
+使用 Node.js 24、npm 和 Git，在源码目录执行：
+
+```sh
+npm ci --include=dev --ignore-scripts
+npm run check
+npm run hooks:install
+paseo plugin install .
+```
+
+`npm run check` 检查本地任务状态、TypeScript 与自动化测试；测试使用临时数据和模拟 HTTP，不需要真实 Token 或模型。更改后使用 `paseo plugin reload gongfeng-workbench`，不需要重启 daemon。
+
+采用 [MIT 许可证](LICENSE)。本项目独立实现工蜂接口层，参考现有 Paseo 插件的交互组织，未复制 GitHub 插件的代码或实质部分。

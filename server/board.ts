@@ -1,0 +1,46 @@
+import type { PluginServerContext } from "@getpaseo/plugin/server";
+import { z } from "zod";
+import { boardPage } from "../shared/board.ts";
+import type { registerRepositories } from "./repositories.ts";
+import type { GongfengClient } from "./gongfeng.ts";
+
+const groupsSchema = z.array(z.object({
+  project: z.object({ id: z.number().int().positive(), path_with_namespace: z.string().min(1) }),
+  merge_requests: z.array(z.object({ id: z.number().int().positive(), iid: z.number().int().positive(), title: z.string(), state: z.string().min(1),
+    author: z.object({ username: z.string().nullable().optional() }).nullable().optional(),
+  })),
+}));
+
+export function registerBoard(server: PluginServerContext, api: GongfengClient, repositories: ReturnType<typeof registerRepositories>) {
+  server.handle(boardPage, async ({ relation, state, page, accountId, repositoryId, siteUrl }, context) => {
+    const session = await api.session(siteUrl);
+    if (!session.ok) return session;
+    if (accountId !== undefined && accountId !== session.account.id) return { ok: false as const, error: "account_changed" as const };
+    if (repositoryId !== undefined) {
+      const linked = await repositories.list({ repositoryId, siteUrl: session.siteUrl }, context);
+      if (!linked.ok) return linked;
+      if (!linked.bindings.length) return { ok: false as const, error: "stale_binding" as const };
+    }
+    const result = await session.get("/dashboard/merge_requests", {
+      [relation === "authored" ? "author_user_name" : "reviewer_user_name"]: session.account.username,
+      state: state === "opened" ? "all" : state, page: String(page), per_page: "20", sort: "updated_desc",
+    });
+    if (!result.ok) return result;
+    const parsed = groupsSchema.safeParse(result.data);
+    if (!parsed.success) return { ok: false as const, error: "invalid_response" as const };
+    const items = parsed.data.flatMap(({ project, merge_requests }) => merge_requests.map(({ author, ...mr }) => ({
+      projectId: project.id, projectPath: project.path_with_namespace, ...mr,
+      authorUsername: author?.username?.trim() || null,
+      url: `${session.siteUrl}/${project.path_with_namespace.split("/").map(encodeURIComponent).join("/")}/merge_requests/${mr.iid}`,
+    })));
+    const nextHeader = result.headers.get("X-Next-Page");
+    const nextPage = nextHeader === null ? (items.length >= 20 ? page + 1 : null)
+      : nextHeader === "" ? null : Number(nextHeader);
+    if (nextPage !== null && (!Number.isInteger(nextPage) || nextPage <= page || nextPage > 10000)) return { ok: false as const, error: "invalid_response" as const };
+    // Dashboard's reopened filter returned opened records; scan all states to avoid omissions.
+    const visible = items.filter(mr => (repositoryId === undefined || mr.projectId === repositoryId)
+      && (state !== "opened" || !["merged", "closed"].includes(mr.state)));
+    return { ok: true as const, accountId: session.account.id, scanned: items.length,
+      items: [...new Map(visible.map((mr) => [`${mr.projectId}:${mr.id}`, mr])).values()], nextPage };
+  });
+}
