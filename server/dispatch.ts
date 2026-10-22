@@ -28,7 +28,6 @@ export function registerDispatch(server: PluginServerContext, api: GongfengClien
   const storage = join(home, "plugin-data", "gongfeng-workbench"), file = join(storage, "reviews.json");
   const lifetime = new AbortController();
   const visible = (operation: Operation) => reviewOperationSchema.parse(operation);
-  function serialize<T>(fn: () => Promise<T>) { return api.exclusive(fn); }
   async function read(): Promise<Operation[]> {
     try { return z.array(recordSchema).parse(JSON.parse(await readFile(file, "utf8"))); }
     catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return []; throw error; }
@@ -51,7 +50,7 @@ export function registerDispatch(server: PluginServerContext, api: GongfengClien
   async function profiles(context: PluginHandlerContext) {
     return z.array(profileSchema).parse((await context.paseo.config.get()).config.agentProfiles ?? []);
   }
-  server.handle(prepareReview, ({ operationId, ...reference }, context) => serialize(async () => {
+  server.handle(prepareReview, ({ operationId, ...reference }, context) => api.exclusive(async () => {
     try {
       const session = await api.session(reference.siteUrl); if (!session.ok) return session;
       if (reference.accountId !== undefined && reference.accountId !== session.account.id) return { ok: false as const, error: "account_changed" };
@@ -75,14 +74,14 @@ export function registerDispatch(server: PluginServerContext, api: GongfengClien
       return { ok: true as const, operation: visible(operation), projects: local.projects, profiles: available.map(p => reviewProfileSchema.parse(p)) };
     } catch { return { ok: false as const, error: "preparation_failed" }; }
   }));
-  server.handle(reviewHistory, reference => serialize(async () => {
+  server.handle(reviewHistory, reference => api.exclusive(async () => {
     try {
       const session = await api.session(reference.siteUrl); if (!session.ok) return session;
       if (reference.accountId !== undefined && reference.accountId !== session.account.id) return { ok: false as const, error: "account_changed" };
       return { ok: true as const, operations: (await read()).filter(operation => operation.siteUrl === session.siteUrl && operation.accountId === session.account.id && operation.reference.projectId === reference.projectId && operation.reference.mrId === reference.mrId).map(visible) };
     } catch { return { ok: false as const, error: "storage_error" }; }
   }));
-  server.handle(startReview, (input, context) => serialize(async () => {
+  server.handle(startReview, (input, context) => api.exclusive(async () => {
     let operation: Operation | undefined; let records: Operation[] = []; let events: Promise<void> = Promise.resolve();
     const save = () => { events = events.then(() => write(records)); return events; };
     const fail = async (error: string) => { if (operation) { operation.error = error; await save().catch(() => {}); } return { ok: false as const, error, ...(operation ? { operation: visible(operation) } : {}) }; };
