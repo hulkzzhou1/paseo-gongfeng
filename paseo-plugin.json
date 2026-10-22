@@ -1,7 +1,7 @@
 {
   "id": "gongfeng-workbench",
   "name": "工蜂",
-  "description": "管理工蜂仓库关联、查询当前及历史 MR，并在 Paseo 派发固定版本 Review。",
+  "description": "管理工蜂仓库关联，查询当前及历史 MR、差异、讨论与评审状态。",
   "requirements": {
     "paseo": ">=0.12.0"
   }

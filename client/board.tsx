@@ -143,7 +143,7 @@ export function Board(props: PluginScreenProps & { onManageRepositories(): void 
     </View>
     {selectedMr && selectedMr.siteUrl === siteUrl ? <Drawer theme={theme} width={fullDrawer ? width : Math.min(width * 0.7, 1000)} onDismiss={closeDrawer}>{(close, ready) =>
       <MRDetail {...props} layout={{ ...layout, compact: fullDrawer || width * 0.7 < 650 }} params={{ projectId: String(selectedMr.projectId), mrId: String(selectedMr.mrId), accountId: String(selectedMr.accountId), ...(selectedMr.siteUrl ? { siteUrl: selectedMr.siteUrl } : {}) }}
-        drawer focusReady={ready} onBack={close} onManageRepositories={onManageRepositories} />
+        drawer focusReady={ready} onBack={close} />
     }</Drawer> : null}
     <Modal title="工蜂配置" open={settingsOpen} onOpenChange={setSettingsOpen}><Modal.Content>
       {settingsOpen ? <ConnectionSettings {...props} /> : null}

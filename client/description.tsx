@@ -1,33 +1,59 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Linking, ScrollView, Text, View } from "react-native";
+import { Image, Linking, ScrollView, Text, View } from "react-native";
 import { ExternalLink } from "@getpaseo/plugin/client/ui";
-import { descriptionBlocks, descriptionLink } from "./description-blocks.ts";
+import { richBlocks, richInline, type RichToken } from "./rich-text.ts";
 import { Action, mono, workbenchStyles, type Theme } from "./workbench-ui.tsx";
 import { widenDescriptionDialog } from "./web.ts";
+
+function InlineImage({ src, alt, maxWidth, theme }: { src: string; alt: string; maxWidth: number; theme: Theme }) {
+  const [failed, setFailed] = useState(false), [size, setSize] = useState({ width: 160, height: 20 });
+  const scale = Math.min(1, maxWidth / size.width, 240 / size.height);
+  if (failed) return <Text style={{ color: theme.colors.foregroundMuted }}>[{alt}]</Text>;
+  return <Image source={{ uri: src }} accessibilityLabel={alt} resizeMode="contain" style={{ width: size.width * scale, height: size.height * scale }}
+    onError={() => setFailed(true)} onLoad={event => {
+      const next = event.nativeEvent.source;
+      if (next && Number.isFinite(next.width) && Number.isFinite(next.height) && next.width > 0 && next.height > 0) setSize(old => old.width === next.width && old.height === next.height ? old : { width: next.width, height: next.height });
+    }} />;
+}
+
+export function RichText({ source, url, theme, emptyText = "无内容。" }: { source: string; url?: string | null; theme: Theme; emptyText?: string }) {
+  const blocks = useMemo(() => richBlocks(source), [source]);
+  const [limit, setLimit] = useState(100), [linkError, setLinkError] = useState(false), [width, setWidth] = useState(260);
+  const styles = workbenchStyles(theme), c = theme.colors;
+  const open = (href: string) => { void Linking.openURL(href).catch(() => setLinkError(true)); };
+  const render = (tokens: RichToken[], linked = false): React.ReactNode[] => tokens.map((token, index) => {
+    switch (token.kind) {
+      case "text": return token.text;
+      case "code": return <Text key={index} style={{ fontFamily: mono, fontSize: 12, backgroundColor: c.surface2 }}>{token.text}</Text>;
+      case "strong": return <Text key={index} style={{ fontWeight: "700" }}>{render(token.children, linked)}</Text>;
+      case "emphasis": return <Text key={index} style={{ fontStyle: "italic" }}>{render(token.children, linked)}</Text>;
+      case "link": return <Text key={index} accessibilityRole="link" style={{ color: c.accent, textDecorationLine: "underline" }} onPress={() => open(token.href)}>{render(token.children, true)}</Text>;
+      case "image": {
+        const image = <InlineImage key={token.src} {...token} maxWidth={Math.max(1, width - 16)} theme={theme} />;
+        return linked ? image : <Text key={index} accessibilityRole="link" accessibilityLabel={`查看图片：${token.alt}`} onPress={() => open(token.src)}>{image}</Text>;
+      }
+    }
+  });
+  return <View testID="gongfeng-rich-text" onLayout={event => setWidth(event.nativeEvent.layout.width)} style={{ gap: 10, minWidth: 0 }}>
+    {blocks.slice(0, limit).map((block, index) => block.kind === "rule" ? <View key={index} style={{ height: 1, backgroundColor: c.border, marginVertical: 4 }} /> : block.kind === "code" ? <View key={index} style={[styles.panel, { backgroundColor: c.surface1 }]}>
+      {block.marker ? <Text style={[styles.muted, { paddingHorizontal: 10, paddingTop: 6 }]}>{block.marker}</Text> : null}
+      <ScrollView horizontal><Text selectable style={{ color: c.foreground, fontFamily: mono, fontSize: 12, lineHeight: 20, padding: 10 }}>{block.text || " "}</Text></ScrollView>
+    </View> : <View key={index} style={{ flexDirection: "row", gap: 8, ...(block.kind === "quote" ? { borderLeftWidth: 3, borderColor: c.border, paddingLeft: 10 } : {}) }}>
+      {block.kind === "list" ? <Text style={styles.text}>{block.marker}</Text> : null}
+      <Text selectable accessibilityRole={block.kind === "heading" ? "header" : undefined} style={{ color: c.foreground, flex: 1, minWidth: 0, fontSize: block.kind === "heading" ? block.level === 1 ? 20 : block.level === 2 ? 17 : 15 : 13, lineHeight: 22, fontWeight: block.kind === "heading" ? "600" : "400" }}>{render(richInline(block.text, url))}</Text>
+    </View>)}
+    {!blocks.length ? <Text style={styles.muted}>{emptyText}</Text> : null}
+    {blocks.length > limit ? <Action theme={theme} label="继续显示内容" onPress={() => setLimit(value => value + 100)} /> : null}
+    {linkError ? <Text accessibilityLiveRegion="polite" style={styles.text}>无法打开链接，请在工蜂原站查看。</Text> : null}
+  </View>;
+}
 
 export function Description({ source, url, theme }: { source: string; url: string | null; theme: Theme }) {
   const root = useRef<View>(null);
   useLayoutEffect(() => widenDescriptionDialog(root.current), []);
-  const blocks = useMemo(() => descriptionBlocks(source), [source]);
-  const [limit, setLimit] = useState(100), [linkError, setLinkError] = useState(false);
-  const styles = workbenchStyles(theme), c = theme.colors;
-  const inline = (text: string) => text.split(/(`[^`\n]{1,500}`|\*\*[^*\n]{1,500}\*\*|!?\[[^\]\n]{0,500}\]\([^)\s]{1,2000}\))/g).map((part, index) => {
-    if (part.startsWith("`") && part.endsWith("`")) return <Text key={index} style={{ fontFamily: mono, backgroundColor: c.surface2 }}>{part.slice(1, -1)}</Text>;
-    if (part.startsWith("**") && part.endsWith("**")) return <Text key={index} style={{ fontWeight: "600" }}>{part.slice(2, -2)}</Text>;
-    const link = /^(!?)\[([^\]]*)\]\(([^)]+)\)$/.exec(part), href = link ? descriptionLink(link[3], url) : null;
-    return link && href ? <Text key={index} accessibilityRole="link" style={{ color: c.accent, textDecorationLine: "underline" }} onPress={() => { void Linking.openURL(href).catch(() => setLinkError(true)); }}>{link[1] ? "图片：" : ""}{link[2] || href}</Text> : part;
-  });
+  const styles = workbenchStyles(theme);
   return <View ref={root} style={{ gap: 14 }}>
-    {blocks.slice(0, limit).map((block, index) => block.kind === "code" ? <View key={index} style={[styles.panel, { backgroundColor: c.surface1 }]}>
-      {block.marker ? <Text style={[styles.muted, { paddingHorizontal: 12, paddingTop: 8 }]}>{block.marker}</Text> : null}
-      <ScrollView horizontal><Text selectable style={{ color: c.foreground, fontFamily: mono, fontSize: 12, lineHeight: 20, padding: 12 }}>{block.text || " "}</Text></ScrollView>
-    </View> : <View key={index} style={{ flexDirection: "row", gap: 8, ...(block.kind === "quote" ? { borderLeftWidth: 3, borderColor: c.border, paddingLeft: 12 } : {}) }}>
-      {block.kind === "list" ? <Text style={styles.text}>{block.marker}</Text> : null}
-      <Text selectable accessibilityRole={block.kind === "heading" ? "header" : undefined} style={{ color: c.foreground, flex: 1, minWidth: 0, fontSize: block.kind === "heading" ? block.level === 1 ? 20 : 16 : 14, lineHeight: 24, fontWeight: block.kind === "heading" ? "600" : "400" }}>{inline(block.text)}</Text>
-    </View>)}
-    {!blocks.length ? <Text style={styles.muted}>无描述。</Text> : null}
-    {blocks.length > limit ? <Action theme={theme} label="继续显示描述" onPress={() => setLimit(value => value + 100)} /> : null}
-    {linkError ? <Text accessibilityLiveRegion="polite" style={styles.text}>无法打开链接，请在工蜂原站查看。</Text> : null}
+    <RichText source={source} url={url} theme={theme} emptyText="无描述。" />
     {url ? <ExternalLink href={url} accessibilityLabel="在工蜂查看完整描述"><Text style={[styles.text, { textDecorationLine: "underline", paddingVertical: 8 }]}>在工蜂查看完整描述 ↗</Text></ExternalLink> : null}
   </View>;
 }

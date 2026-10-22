@@ -49,6 +49,7 @@ beforeEach(async () => {
 });
 afterEach(async () => { stop?.(); mock.restoreAll(); for (const key of Object.keys(process.env)) if (!(key in env)) delete process.env[key]; Object.assign(process.env, env); await rm(home, { recursive: true, force: true }); });
 test("克隆完整仓库并向当前daemon登记关联，重复请求和重载不重复项目", async () => {
+  for (const name of ["review.prepare", "review.start", "review.history"]) assert(!handlers.has(name), `${name} must remain unregistered`);
   const targetPath = join(home, "cloned");
   const result = await rpc(cloneRepository, { repositoryId: 12, targetPath }); assert(result.ok); assert.equal(result.operation.stage, "completed"); assert.equal(result.operation.projectId, "prj_cloned");
   assert.equal(await readFile(join(targetPath, "README.md"), "utf8"), "clone fixture");

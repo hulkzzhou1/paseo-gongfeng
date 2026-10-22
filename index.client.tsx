@@ -13,7 +13,7 @@ export default function contribute(client: PluginClientContext) {
     id: "connection", title: "工蜂连接", icon: "GitBranch", Component: ConnectionSettings,
   });
   const removeBoard = client.addScreen({ id: "board", title: "工蜂 MR", Component: (props) => <Board {...props} onManageRepositories={() => client.openScreen({ screenId: "repositories" })} /> });
-  const removeDetail = client.addScreen({ id: "mr-detail", title: "工蜂 MR 详情", Component: (props) => <MRDetail {...props} onManageRepositories={() => client.openScreen({ screenId: "repositories" })} onBack={() => client.openScreen({ screenId: "board" })} /> });
+  const removeDetail = client.addScreen({ id: "mr-detail", title: "工蜂 MR 详情", Component: (props) => <MRDetail {...props} onBack={() => client.openScreen({ screenId: "board" })} /> });
   const removeBoardCommand = client.addCommandCenterItem({
     id: "open-gongfeng-board", title: "工蜂：MR 看板", icon: "GitBranch", context: "global",
     onSelect: ({ openScreen }) => openScreen({ screenId: "board" }),
