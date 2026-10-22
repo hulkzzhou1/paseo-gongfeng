@@ -1,12 +1,21 @@
-# 工蜂
+# Gongfeng
 
-在 Paseo 中连接指定工蜂站点，管理仓库与本地项目的关联，查询全部可见、我创建或我参与评审的当前及历史 MR。顶部可按状态、仓库和关键词筛选；关键词搜索逐页扫描并提示已搜索范围，可继续搜索后续内容。详情提供描述、代码差异、讨论、TAPD 关联与 CI 检查摘要。
+Manage Gongfeng repositories and merge requests in Paseo. Browse accessible merge requests, filter by author or reviewer relationship, state and linked repository, and search titles, repository paths, numbers and author accounts across loaded pages. The interface is currently in Simplified Chinese.
 
-在工作台右上角的“工蜂设置”填写 HTTPS 站点根地址和该站点的 Private Token。凭据仅在服务器保存，每次使用一个站点；切换保留各自凭据、关联和历史。
+Open a merge request in a floating drawer to view its description, line-numbered changes, discussion, reviewers, related TAPD items and commit check summaries. Discussion and descriptions support common Markdown and restricted HTML, including image badges. Search and discussion are paginated; the interface shows when more results remain.
 
-MR 概览使用统一卡片，包含代码评审、描述、TAPD 及 CI，右上角统一刷新。可编辑普通／必要评审人；当前账号是评审人时可打开评审意见弹窗，选择同意、需要修改、明确拒绝或评论。仅在保存／确认后写入工蜂，权限和必要评审限制由工蜂执行。写请求不自动重试，部分或未知结果需核对实际记录。插件不提供 Agent Review 派发，不合入 MR。
+## Setup
 
-基线为 Paseo 0.12.0，需要 daemon 可访问站点，并具备 Git、Paseo CLI 和独立配置的 Git SSH 权限。站点需要兼容本插件使用的 OpenAPI v3；公网 SaaS 完整链路尚未实测，填写地址不代表所有部署版本均已验收。
+Requires Paseo 0.12.0 or later, a Gongfeng site compatible with the OpenAPI v3 endpoints used by this plugin, and network access from the daemon to that site. Set the HTTPS site root and a Private Token in the plugin's connection settings. The daemon uses one active Gongfeng account, shared by its authorized clients. Credentials and repository associations are retained separately for each site. Compatibility with every Gongfeng deployment, the public SaaS account flow and native mobile clients has not been fully verified.
 
+Add accessible repositories, then associate them with existing local Paseo projects. One repository can map to multiple projects; each project maps to at most one repository. Cloning and registering a new project requires local Git, the Paseo CLI, and separately configured noninteractive SSH access to the site host on the standard SSH port. The target parent directory must exist. Submodules and LFS objects are not automatically downloaded. The plugin does not install additional software.
 
-旧版本产生的 Agent、工作区和历史文件保留，可从 Paseo 原有入口查看已有 Agent；插件不再提供派发或恢复入口。
+## Access and actions
+
+The daemon sends the token only to the configured Gongfeng API and stores it in a private server-side file. It does not return it to clients or use it for Git, images or model prompts. API responses, repository information and review data are displayed to connected clients. External links and remote images can contact their own destinations from the client without the API token. The plugin does not send content to agent model providers.
+
+Repository management reads local project information and Git remotes. An explicit clone action creates a new local directory, runs Git over SSH, registers a Paseo project and saves its association. Removing an association preserves local code, projects and existing workspaces.
+
+You can edit ordinary and required reviewers, and submit an approval, request changes, rejection or comment when the current account is a reviewer. These actions write to Gongfeng only after saving or confirming in the interface. Gongfeng enforces account permissions and required-reviewer rules. Writes are not automatically retried; partial or unknown outcomes require checking the actual state. The final version check and the write are not an atomic operation. Real business merge-request writes have not been end-to-end verified.
+
+The plugin does not launch Agent Review, merge requests or trigger pipelines. CI shows commit check summaries rather than full pipeline logs. TAPD links are generated only for recognized deployments; other sites retain the returned association data and report that a link is unavailable.

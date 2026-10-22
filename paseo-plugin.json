@@ -1,8 +1,17 @@
 {
   "id": "gongfeng-workbench",
   "name": "工蜂",
-  "description": "管理工蜂仓库关联，查询当前及历史 MR、差异、讨论与评审状态。",
+  "description": "Manage Gongfeng repositories, merge requests, code changes, discussions and reviewer actions in Paseo.",
   "requirements": {
     "paseo": ">=0.12.0"
-  }
+  },
+  "translations": {
+    "zh-CN": {
+      "name": "工蜂",
+      "description": "管理工蜂仓库关联，查询当前及历史 MR、差异、讨论与评审状态。"
+    }
+  },
+  "media": [
+    "assets/gongfeng-board.png"
+  ]
 }
