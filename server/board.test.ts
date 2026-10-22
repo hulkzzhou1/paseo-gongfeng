@@ -29,6 +29,39 @@ test("看板请求和MR链接跟随自定义站点，旧页面即使账号ID相�
   assert.deepEqual(await rpc(boardPage, { relation: "authored", state: "all", page: 1, accountId: 7, siteUrl: "https://git.woa.com" }), { ok: false, error: "account_changed" });
 });
 const mr = { id: 100, iid: 2, title: "A change", state: "opened" };
+
+test("全部可见MR不传作者或评审人限制，保留其他作者和项目", async () => {
+  await connect(url => {
+    assert.equal(url.searchParams.has("author_user_name"), false);
+    assert.equal(url.searchParams.has("reviewer_user_name"), false);
+    return Response.json([{ project, merge_requests: [{ ...mr, author: { username: "bob" } }] }, { project: { ...project, id: 20 }, merge_requests: [{ ...mr, id: 101, author: { username: "charlie" } }] }]);
+  });
+  const result = await rpc(boardPage, { relation: "all", state: "all", page: 1, accountId: 7 });
+  assert(result.ok); assert.deepEqual(result.items.map(m => [m.projectId, m.authorUsername]), [[10, "bob"], [20, "charlie"]]);
+});
+
+test("关键词按服务端原始分页扫描，空匹配页仍可在后页查到，不能依赖上游忽略的search参数", async () => {
+  await connect(url => {
+    assert.equal(url.searchParams.get("per_page"), "100"); assert.equal(url.searchParams.has("search"), false);
+    const page = Number(url.searchParams.get("page"));
+    return Response.json([{ project, merge_requests: page === 1 ? Array.from({ length: 100 }, (_, i) => ({ ...mr, id: 100 + i, title: "Other change" })) : [{ ...mr, title: "Fix Kubernetes", author: { username: "bob" } }] }]);
+  });
+  const first = await rpc(boardPage, { relation: "all", state: "opened", page: 1, search: " kubernetes " });
+  assert(first.ok); assert.equal(first.items.length, 0); assert.equal(first.scanned, 100); assert.equal(first.nextPage, 2);
+  const second = await rpc(boardPage, { relation: "all", state: "opened", page: first.nextPage, search: "KUBERNETES" });
+  assert(second.ok); assert.equal(second.items.length, 1); assert.equal(second.scanned, 1); assert.equal(second.nextPage, null);
+});
+
+test("搜索支持仓库路径、编号及作者，并与关系和状态独立组合，拒绝超长输入", async () => {
+  await connect(url => {
+    assert.equal(url.searchParams.get("author_user_name"), "alice"); assert.equal(url.searchParams.get("state"), "merged");
+    return Response.json([{ project, merge_requests: [{ ...mr, state: "merged", author: { username: "bob" } }] }], { headers: { "X-Next-Page": "" } });
+  });
+  for (const search of ["team/sub", "!2", "@bob"]) {
+    const result = await rpc(boardPage, { relation: "authored", state: "merged", page: 1, search }); assert(result.ok); assert.equal(result.items.length, 1);
+  }
+  await assert.rejects(rpc(boardPage, { relation: "all", state: "all", page: 1, search: "x".repeat(257) }));
+});
 async function rpc<T>(contract: Contract<T>, input: unknown) {
   const handler = handlers.get(contract.name);
   assert(handler, `Missing RPC: ${contract.name}`);

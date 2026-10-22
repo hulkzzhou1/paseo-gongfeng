@@ -19,7 +19,7 @@ export default function contribute(client: PluginClientContext) {
     onSelect: ({ openScreen }) => openScreen({ screenId: "board" }),
   });
   const removeSidebar = client.addSidebarHeaderItem({
-    id: "gongfeng", title: "工蜂工作台",
+    id: "gongfeng", title: "工蜂",
     Component: ({ openScreen, currentScreen }) => <SidebarRow icon="GitBranch" active={currentScreen?.screenId === "board"} onPress={() => openScreen({ screenId: "board" })} />,
   });
   const removeCommand = client.addCommandCenterItem({

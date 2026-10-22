@@ -20,12 +20,13 @@ interface FocusElement {
 }
 interface KeyEvent {
   key: string; shiftKey: boolean; defaultPrevented: boolean;
+  isComposing?: boolean;
   preventDefault(): void; stopPropagation(): void;
 }
 interface FocusDocument {
   activeElement: FocusElement | null;
-  addEventListener(type: string, listener: (event: KeyEvent) => void): void;
-  removeEventListener(type: string, listener: (event: KeyEvent) => void): void;
+  addEventListener(type: string, listener: (event: KeyEvent) => void, capture?: boolean): void;
+  removeEventListener(type: string, listener: (event: KeyEvent) => void, capture?: boolean): void;
 }
 
 export function containDrawerFocus(node: unknown, close: () => void): () => void {
@@ -35,7 +36,7 @@ export function containDrawerFocus(node: unknown, close: () => void): () => void
   const previous = document.activeElement;
   const keydown = (event: KeyEvent) => {
     // Host dialogs render outside the drawer. Let their own focus boundary handle keys.
-    if (event.defaultPrevented || !root.contains(document.activeElement)) return;
+    if (event.defaultPrevented || event.isComposing || !root.contains(document.activeElement)) return;
     if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(); return; }
     if (event.key !== "Tab") return;
     const elements = Array.from(root.querySelectorAll('a[href],input,textarea,button,[role="button"],[tabindex]')).filter(element => {
@@ -46,6 +47,7 @@ export function containDrawerFocus(node: unknown, close: () => void): () => void
       : !event.shiftKey && document.activeElement === elements.at(-1) ? elements[0] : undefined;
     if (target) { event.preventDefault(); target.focus(); }
   };
-  document.addEventListener("keydown", keydown);
-  return () => { document.removeEventListener("keydown", keydown); if (previous?.isConnected) previous.focus(); };
+  // React Native Web TextInput stops keydown bubbling, including Escape and Tab.
+  document.addEventListener("keydown", keydown, true);
+  return () => { document.removeEventListener("keydown", keydown, true); if (previous?.isConnected) previous.focus(); };
 }

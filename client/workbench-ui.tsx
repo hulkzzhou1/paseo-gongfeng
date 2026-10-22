@@ -33,23 +33,24 @@ export function WorkbenchCard({ theme, title, icon, tag, right, testID, children
   </View>;
 }
 
-export function Action({ theme, label, icon, onPress, disabled, primary, selected, autoFocus, quiet }: {
-  theme: Theme; label: string; icon?: string; onPress(): void; disabled?: boolean; primary?: boolean; selected?: boolean; autoFocus?: boolean; quiet?: boolean;
+export function Action({ theme, label, icon, onPress, disabled, primary, selected, autoFocus, quiet, iconOnly, pill, dense }: {
+  theme: Theme; label: string; icon?: string; onPress(): void; disabled?: boolean; primary?: boolean; selected?: boolean; autoFocus?: boolean; quiet?: boolean; iconOnly?: boolean; pill?: boolean; dense?: boolean;
 }) {
   const [focused, setFocused] = useState(false);
   const ref = useRef<View>(null);
   useEffect(() => { if (autoFocus) ref.current?.focus(); }, [autoFocus]);
   const c = theme.colors;
-  return <Pressable ref={ref} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled, ...(selected === undefined ? {} : { selected }) }}
+  const filled = primary || pill && selected;
+  return <Pressable ref={ref} accessibilityRole="button" accessibilityLabel={label} aria-selected={selected} accessibilityState={{ disabled: !!disabled, ...(selected === undefined ? {} : { selected }) }}
     disabled={disabled} onPress={onPress} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
-    style={({ pressed }) => ({ minHeight: primary ? 44 : 36, paddingHorizontal: 10, paddingVertical: 7, borderRadius: selected === undefined ? 6 : 0, borderWidth: 1,
-      borderBottomWidth: selected === undefined ? 1 : 2,
-      borderColor: focused ? c.accent : quiet || selected !== undefined ? "transparent" : c.border,
-      borderBottomColor: focused || selected ? c.accent : quiet || selected !== undefined ? "transparent" : c.border,
-      backgroundColor: primary ? c.accent : pressed ? c.surface2 : c.surface0,
+    style={({ pressed }) => ({ minHeight: dense ? 28 : primary ? 44 : 36, minWidth: iconOnly ? dense ? 28 : 36 : undefined, paddingHorizontal: dense ? 8 : 10, paddingVertical: dense ? 4 : 7, borderRadius: pill ? dense ? 14 : 18 : selected === undefined ? 6 : 0, borderWidth: 1,
+      borderBottomWidth: pill || selected === undefined ? 1 : 2,
+      borderColor: focused || filled ? c.accent : pill ? c.border : quiet || selected !== undefined ? "transparent" : c.border,
+      borderBottomColor: focused || selected ? c.accent : pill ? c.border : quiet || selected !== undefined ? "transparent" : c.border,
+      backgroundColor: filled ? c.accent : pressed ? c.surface2 : c.surface0,
       opacity: disabled ? 0.5 : 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 })}>
-    {icon ? <Icon name={icon} size={15} color={primary ? c.accentForeground : c.foregroundMuted} /> : null}
-    <Text style={{ color: primary ? c.accentForeground : selected === false || quiet ? c.foregroundMuted : c.foreground, fontSize: 13, fontWeight: selected || primary ? "700" : "400" }}>{label}</Text>
+    {icon ? <Icon name={icon} size={dense ? 14 : 15} color={filled ? c.accentForeground : c.foregroundMuted} /> : null}
+    {!iconOnly ? <Text style={{ color: filled ? c.accentForeground : selected === false || quiet ? c.foregroundMuted : c.foreground, fontSize: dense ? 12 : 13, fontWeight: selected || primary ? dense ? "600" : "700" : "400" }}>{label}</Text> : null}
   </Pressable>;
 }
 
