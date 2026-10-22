@@ -5,6 +5,7 @@ import { ExternalLink } from "@getpaseo/plugin/client/ui";
 import type { RpcOutput } from "@getpaseo/plugin";
 import type { mrReview, MrRef } from "../shared/detail.ts";
 import { reviewerReference } from "../shared/reviewers.ts";
+import { ReviewerAvatar } from "./reviewer-avatar.tsx";
 import { EditReviewers } from "./reviewers.tsx";
 import { SubmitReview } from "./submit-review.tsx";
 import { Action, WorkbenchCard, workbenchStyles, type Theme } from "./workbench-ui.tsx";
@@ -46,7 +47,7 @@ function ApprovalRule({ theme, rule, reviewers, necessary, peopleKnown = true }:
     <View style={{ paddingTop: 2 }}><Icon name={!known ? "Info" : rule === 0 ? "Minus" : met ? "Check" : "Clock"} size={15} color={color} /></View>
     <View style={{ flex: 1, minWidth: 0, flexDirection: "row", flexWrap: "wrap", gap: 5 }}>
       <Text style={styles.text}>{label}</Text>
-      {rule !== null && rule !== 0 ? <Text style={styles.muted}>{peopleKnown ? `（${approved} / ${reviewers.length} 已同意）` : "（必要评审人信息待核对）"}</Text> : null}
+      {rule !== null && rule !== 0 ? <Text style={styles.muted}>{peopleKnown ? `（${approved} / ${required} 已同意）` : "（必要评审人信息待核对）"}</Text> : null}
     </View>
   </View>;
 }
@@ -60,7 +61,6 @@ export function ReviewStatus({ theme, reference, review, loading, error, url, so
   const editReference = reviewerReference.safeParse(reference);
   const styles = workbenchStyles(theme), c = theme.colors;
   const reviewers = [...new Map((review?.reviewers ?? []).map(r => [r.id, r])).values()];
-  const approved = reviewers.filter(r => r.state === "approved").length;
   const state = review ? verdict(review.state) : undefined;
   const self = reviewers.find(p => p.id === reference.accountId);
   const submitHint = !sourceSha ? "源提交尚未核对，请先刷新详情。" : !["opened", "reopened"].includes(mrState ?? "") ? "当前 MR 未开放，不能在此提交评审意见。" : "";
@@ -73,27 +73,26 @@ export function ReviewStatus({ theme, reference, review, loading, error, url, so
       {error ? <Text accessibilityLiveRegion="polite" style={{ ...styles.text, color: c.statusDanger }}>{error}{review ? " 以下为上次读取结果。" : ""}</Text> : null}
       {loading ? <Text accessibilityLiveRegion="polite" style={styles.muted}>{review ? "正在更新评审状态…" : "正在加载评审状态…"}</Text> : null}
       {review ? <>
-        <View style={styles.toolbar}>
-          <Text style={[styles.text, { fontWeight: "600" }]}>评审人 · {reviewers.length}</Text>
-          <View style={{ flex: 1, minWidth: 80, flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+          <Text style={[styles.text, { fontWeight: "600" }]}>评审人</Text>
+          <View testID="reviewer-avatars" style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 9 }}>
             {reviewers.slice(0, 6).map(person => {
               const status = verdict(person.state, true);
-              return <View key={person.id} accessibilityLabel={`${person.name} @${person.username} · ${person.type === "necessary" ? "必要评审人 · " : ""}${status.label}`}
-                style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.border, alignItems: "center", justifyContent: "center" }}>
-                <Text style={{ color: c.foreground, fontSize: 12, fontWeight: "600" }}>{Array.from(person.name || person.username)[0]?.toUpperCase() || "?"}</Text>
+              return <View key={person.id} accessibilityLabel={`${person.name} @${person.username} · ${person.type === "necessary" ? "必要评审人 · " : ""}${status.label}`} style={{ marginVertical: 3 }}>
+                <ReviewerAvatar person={person} theme={theme} size={30} />
+                {person.type === "necessary" ? <View style={{ position: "absolute", top: -4, right: -4, padding: 1, backgroundColor: c.surface0, borderRadius: 7 }}><Icon name="Star" size={11} color={c.statusWarning} /></View> : null}
                 <View style={{ position: "absolute", bottom: -3, right: -3, padding: 1, backgroundColor: c.surface0, borderRadius: 7 }}><Icon name={status.icon} size={11} color={c[status.tone]} /></View>
               </View>;
             })}
             {reviewers.length > 6 ? <Text style={styles.muted}>+{reviewers.length - 6}</Text> : null}
           </View>
-          {reviewers.length ? <Action theme={theme} quiet label={expanded ? "收起评审人" : "展开评审人"} icon={expanded ? "ChevronUp" : "ChevronDown"} onPress={() => setExpanded(value => !value)} /> : null}
-          <Action theme={theme} quiet label="编辑评审人" icon="Pencil" disabled={loading || !!error || !review.revision || !editReference.success} onPress={() => { setEditNotice(""); setEditing(true); }} />
+          {reviewers.length ? <Action theme={theme} dense quiet pill iconOnly label={expanded ? "收起评审人" : "展开评审人"} icon={expanded ? "ChevronUp" : "ChevronDown"} onPress={() => setExpanded(value => !value)} /> : <Text style={styles.muted}>暂无评审人</Text>}
         </View>
-        <Text style={styles.muted}>{reviewers.length ? `${approved} / ${reviewers.length} 人已同意` : "暂无评审人"}</Text>
         {expanded ? <View style={{ borderTopWidth: 1, borderColor: c.border }}>
           {reviewers.map(person => {
             const status = verdict(person.state, true);
             return <View key={person.id} style={{ paddingVertical: 8, flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+              <ReviewerAvatar person={person} theme={theme} size={28} />
               <View style={{ flex: 1, minWidth: 120 }}><Text style={[styles.text, { fontWeight: "600" }]}>{person.name || person.username}</Text><Text style={styles.muted}>@{person.username}</Text></View>
               {person.type === "necessary" ? <Text style={{ ...styles.muted, color: c.foreground, backgroundColor: c.surface2, paddingHorizontal: 5, borderRadius: 3 }}>必要评审人</Text> : null}
               <Icon name={status.icon} size={14} color={c[status.tone]} /><Text style={{ ...styles.text, color: c[status.tone] }}>{status.label}</Text>
@@ -107,10 +106,13 @@ export function ReviewStatus({ theme, reference, review, loading, error, url, so
             {url ? <ExternalLink href={url} accessibilityLabel="在工蜂核对讨论解决情况"><Text style={styles.muted}>讨论解决情况 · 在工蜂核对</Text></ExternalLink> : <Text style={styles.muted}>讨论解决情况待核对</Text>}
           </View>
         </View>
-        {self ? <View style={[styles.toolbar, { borderTopWidth: 1, borderColor: c.border, paddingTop: 12 }]}>
-          <Text style={[styles.muted, { flex: 1, minWidth: 100 }]}>{submitHint || (self?.state === "approved" ? "你已同意，可再次发表评审意见。" : "提交当前账号的评审意见。")}</Text>
-          <Action theme={theme} primary label={self?.state === "approved" ? "已同意" : "同意"} icon="Check" disabled={loading || !!error || !!submitHint || !review.revision || !editReference.success} onPress={() => { setEditNotice(""); setSubmitting(true); }} />
-        </View> : null}
+        <View style={[styles.toolbar, { borderTopWidth: 1, borderColor: c.border, paddingTop: 10 }]}>
+          <Action theme={theme} dense label="编辑评审人" icon="Pencil" disabled={loading || !!error || !review.revision || !editReference.success} onPress={() => { setEditNotice(""); setEditing(true); }} />
+          {self ? <>
+            <Text style={[styles.muted, { flex: 1, minWidth: 100 }]}>{submitHint || (self.state === "approved" ? "你已同意，可再次发表评审意见。" : "提交当前账号的评审意见。")}</Text>
+            <Action theme={theme} dense primary label={self.state === "approved" ? "已同意" : "同意"} icon="Check" disabled={loading || !!error || !!submitHint || !review.revision || !editReference.success} onPress={() => { setEditNotice(""); setSubmitting(true); }} />
+          </> : null}
+        </View>
       </> : null}
     </View>
     {editing && review && editReference.success ? <EditReviewers theme={theme} reference={editReference.data} review={review} onClose={() => setEditing(false)} onSaved={() => setEditNotice("评审人已更新。") } /> : null}

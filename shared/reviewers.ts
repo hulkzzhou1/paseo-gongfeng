@@ -4,7 +4,7 @@ import { apiError } from "./api.ts";
 import { mrRef, mrReview, shaSchema } from "./detail.ts";
 import { siteUrlSchema } from "./site.ts";
 
-export const reviewUser = z.object({ id: z.number().int().positive(), name: z.string(), username: z.string() });
+export const reviewUser = z.object({ id: z.number().int().positive(), name: z.string(), username: z.string(), avatarUrl: z.string().url().nullish() });
 export const reviewerChoice = z.object({ id: z.number().int().positive(), necessary: z.boolean() }).strict();
 export const reviewerReference = mrRef.extend({ siteUrl: siteUrlSchema, accountId: z.number().int().positive() });
 const error = z.enum([...apiError.options, "stale_review", "partial_update", "reviewer_limit", "version_changed", "review_outcome_unknown"]);

@@ -1,3 +1,4 @@
+import { avatarUrl } from "./avatar.ts";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import type { RpcOutput } from "@getpaseo/plugin";
 import { z } from "zod";
@@ -118,7 +119,7 @@ const rawReview = z.object({
   approver_rule: z.number().int().min(-1).max(100).nullable().catch(null),
   necessary_approver_rule: z.number().int().min(-1).max(100).nullable().catch(null),
   updated_at: z.string().max(256).nullable().catch(null),
-  reviewers: z.array(z.object({ id: z.number().int().positive(), username: z.string(), name: z.string(), review_state: z.string(), type: z.string().nullable().catch(null) })),
+  reviewers: z.array(z.object({ id: z.number().int().positive(), username: z.string(), name: z.string(), avatar_url: z.unknown().optional(), review_state: z.string(), type: z.string().nullable().catch(null) })),
 });
 
 export async function readReview(session: GongfengSession, ref: MrRef): Promise<RpcOutput<typeof mrReview>> {
@@ -126,10 +127,10 @@ export async function readReview(session: GongfengSession, ref: MrRef): Promise<
   if (!result.ok) return result;
   const parsed = rawReview.safeParse(result.data);
   if (!parsed.success || parsed.data.reviewable_id !== ref.mrId) return invalid;
-  const people = new Map<number, { id: number; username: string; name: string; state: string; type: string | null }>();
+  const people = new Map<number, { id: number; username: string; name: string; state: string; type: string | null; avatarUrl: string | null }>();
   for (const person of parsed.data.reviewers) {
     const previous = people.get(person.id);
-    people.set(person.id, { id: person.id, username: person.username, name: person.name,
+    people.set(person.id, { id: person.id, username: person.username, name: person.name, avatarUrl: avatarUrl(person.avatar_url, session.siteUrl) ?? previous?.avatarUrl ?? null,
       state: !previous || previous.state === person.review_state ? person.review_state : "unknown",
       type: previous?.type === "necessary" || person.type === "necessary" ? "necessary" : previous?.type ?? person.type });
   }

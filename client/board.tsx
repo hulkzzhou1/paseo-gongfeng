@@ -197,7 +197,7 @@ function Bucket({ theme, siteUrl, relation, state, accountId, repositoryId, sear
     </View>
     {query.hasNextPage ? <View style={styles.toolbar}><Text style={[styles.muted, { flex: 1 }]}>{search ? `已搜索 ${scanned} 条记录，后续内容尚未搜索` : `已扫描 ${scanned} 条记录，后续页尚未加载`}</Text><Action theme={theme} label={query.isFetchingNextPage ? "加载中…" : search ? "继续搜索" : "继续加载"} disabled={query.isFetching} onPress={() => { void query.fetchNextPage(); }} /></View>
       : query.data ? <Text style={styles.muted}>{search ? `已搜索本轮全部 ${scanned} 条记录。` : "已到查询末页。"}刷新可获取最新记录。</Text> : null}
-    {repositoryId !== undefined ? <Text style={styles.muted}>仓库筛选逐页扫描全局结果；当前页为空不代表后续页没有匹配 MR。</Text> : null}
+    {repositoryId !== undefined && relation !== "all" ? <Text style={styles.muted}>仓库筛选逐页扫描全局结果；当前页为空不代表后续页没有匹配 MR。</Text> : null}
     {state === "opened" ? <Text style={styles.muted}>开放视图包含重新打开及未知状态。</Text> : null}
   </View>;
 }

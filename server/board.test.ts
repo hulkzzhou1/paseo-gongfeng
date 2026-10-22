@@ -331,3 +331,39 @@ test("整个 GET 含退避与响应传输受同一个十秒时限约束", { time
   assert.equal(calls, 2); assert.equal(activeSignal?.aborted, true);
   assert(Date.now() - start >= 9900); assert(Date.now() - start < 11_000);
 });
+
+test("全部选择仓库时直接查询该项目，首屏不能被其他项目的全局分页挤空", async () => {
+  await connect(url => {
+    if (url.pathname === "/api/v3/projects/10") return Response.json({ ...project, name: "Repo" });
+    if (url.pathname === "/api/v3/projects/10/merge_requests") {
+      assert.equal(url.searchParams.has("author_id"), false);
+      assert.equal(url.searchParams.has("reviewer_id"), false);
+      assert.equal(url.searchParams.has("state"), false);
+      assert.equal(url.searchParams.get("order_by"), "updated_at");
+      return Response.json([{ ...mr, author: { username: "bob" } }, { ...mr, id: 101, state: "reopened" }, { ...mr, id: 102, state: "merged" }], { headers: { "X-Next-Page": "" } });
+    }
+    return Response.json([{ project: { ...project, id: 20 }, merge_requests: Array.from({ length: 20 }, (_, i) => ({ ...mr, id: 200 + i })) }]);
+  });
+  for (const projectId of ["local-a", "local-b"]) await rpc(bindRepository, { repositoryId: 10, projectId });
+  const result = await rpc(boardPage, { relation: "all", state: "opened", page: 1, repositoryId: 10 });
+  assert(result.ok); assert.deepEqual(result.items.map(p => [p.projectId, p.id]), [[10, 100], [10, 101]]); assert.equal(result.scanned, 3); assert.equal(result.nextPage, null);
+});
+
+test("项目全部查询保留状态、关键词与原始分页，非法结构仍报错", async () => {
+  let malformed = false;
+  await connect(url => {
+    if (url.pathname === "/api/v3/projects/10") return Response.json({ ...project, name: "Repo" });
+    assert.equal(url.pathname, "/api/v3/projects/10/merge_requests");
+    assert.equal(url.searchParams.get("state"), "merged");
+    assert.equal(url.searchParams.get("per_page"), "100");
+    assert.equal(url.searchParams.has("search"), false);
+    const page = Number(url.searchParams.get("page"));
+    return Response.json(malformed ? [{ ...mr, id: "invalid" }] : [{ ...mr, state: "merged", title: page === 1 ? "Other" : "Wanted", author: { username: "bob" } }], { headers: { "X-Next-Page": page === 1 ? "2" : "" } });
+  });
+  await rpc(bindRepository, { repositoryId: 10, projectId: "local-a" });
+  const input = { relation: "all", state: "merged", repositoryId: 10, search: "wanted" };
+  const first = await rpc(boardPage, { ...input, page: 1 }); assert(first.ok); assert.equal(first.items.length, 0); assert.equal(first.nextPage, 2);
+  const second = await rpc(boardPage, { ...input, page: 2 }); assert(second.ok); assert.equal(second.items[0].title, "Wanted"); assert.equal(second.nextPage, null);
+  malformed = true;
+  assert.deepEqual(await rpc(boardPage, { ...input, page: 1 }), { ok: false, error: "invalid_response" });
+});

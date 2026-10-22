@@ -1,3 +1,4 @@
+import { avatarUrl } from "./avatar.ts";
 import { z } from "zod";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import type { GongfengClient } from "./gongfeng.ts";
@@ -11,12 +12,12 @@ export function registerReviewers(server: PluginServerContext, api: GongfengClie
     if (session.account.id !== input.accountId) return { ok: false as const, error: "account_changed" as const };
     const result = await session.get(`/projects/${input.projectId}/members/all`, { query: input.query, page: String(input.page), per_page: "20" });
     if (!result.ok) return result;
-    const members = z.array(reviewUser.extend({ state: z.string() })).safeParse(result.data);
+    const members = z.array(reviewUser.extend({ state: z.string(), avatar_url: z.unknown().optional() })).safeParse(result.data);
     if (!members.success) return { ok: false as const, error: "invalid_response" as const };
     const header = result.headers.get("x-next-page");
     const next = header ? Number(header) : header === "" ? null : members.data.length === 20 ? input.page + 1 : null;
     if (next !== null && (!Number.isSafeInteger(next) || next <= input.page || next > 10000)) return { ok: false as const, error: "invalid_response" as const };
-    return { ok: true as const, items: members.data.filter(p => p.state === "active").map(p => reviewUser.parse(p)), nextPage: next };
+    return { ok: true as const, items: members.data.filter(p => p.state === "active").map(p => reviewUser.parse({ ...p, avatarUrl: avatarUrl(p.avatar_url, session.siteUrl) })), nextPage: next };
   });
   server.handle(saveReviewers, input => api.exclusive(async (): Promise<RpcOutput<typeof saveReviewers>> => {
     const session = await api.session(input.siteUrl); if (!session.ok) return session;

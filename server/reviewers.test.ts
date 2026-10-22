@@ -36,7 +36,7 @@ beforeEach(async () => {
     calls.push({ method, path: url.pathname, body, query: url.search });
     if (method === "GET" && url.pathname.endsWith("/members/all")) {
       assert.equal(url.searchParams.get("query"), "char");
-      return Response.json([{ id: 13, name: "Charlie", username: "charlie", state: "active", email: "private@example.invalid" }], { headers: { "x-next-page": "" } });
+      return Response.json([{ id: 13, name: "Charlie", username: "charlie", state: "active", avatar_url: "/uploads/charlie.png", email: "private@example.invalid" }], { headers: { "x-next-page": "" } });
     }
     if (method === "GET" && url.pathname === "/api/v3/projects/10") return Response.json({ id: 10, path_with_namespace: "Test/Repo" });
     if (method === "GET" && url.pathname === "/api/v3/projects/10/merge_request/100") return Response.json({ id: 100, iid: 5, title: "Fixture", state: "opened", source_project_id: 10, target_project_id: 10, source_branch: "feature", target_branch: "main", source_commit: sourceSha, base_commit: "b".repeat(40), target_commit: "b".repeat(40) });
@@ -67,7 +67,7 @@ afterEach(async () => { stop?.(); mock.restoreAll(); if (previousHome === undefi
 
 test("搜索有项目权限的成员，仅返回人员展示字段", async () => {
   const result = await rpc(searchReviewers, { ...reference, query: "char" });
-  assert(result.ok); assert.deepEqual(result.items, [{ id: 13, name: "Charlie", username: "charlie" }]); assert.equal(result.nextPage, null);
+  assert(result.ok); assert.deepEqual(result.items, [{ id: 13, name: "Charlie", username: "charlie", avatarUrl: "https://code.example.com/uploads/charlie.png" }]); assert.equal(result.nextPage, null);
   assert.equal(calls[0].path, "/api/v3/projects/10/members/all");
 });
 

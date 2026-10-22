@@ -155,6 +155,20 @@ test("审查卡片保留普通和必要评审规则，缺失或异常的可选�
   assert.equal(invalidRules.necessaryApproverRule, null);
 });
 
+test("评审头像安全映射且不参与名单版本，缺失头像兼容旧结果", async () => {
+  let avatar: unknown = "/uploads/avatar/bob.png";
+  await connect(() => Response.json({ id: 900, reviewable_id: 100, reviewable_type: "merge_request", state: "approving", reviewers: [{ id: 5, username: "bob", name: "Bob", review_state: "approved", type: "invite", avatar_url: avatar }] }));
+  const first = mrReview.output.parse(await rpc(mrReview, ref)); assert(first.ok);
+  assert.equal(first.reviewers[0].avatarUrl, "https://git.woa.com/uploads/avatar/bob.png");
+  for (avatar of ["/uploads/changed.png", "/uploads/a?private_token=secret", undefined]) {
+    const next = mrReview.output.parse(await rpc(mrReview, ref)); assert(next.ok);
+    assert.equal(next.revision, first.revision);
+    assert.equal(next.reviewers[0].avatarUrl, avatar === "/uploads/changed.png" ? "https://git.woa.com/uploads/changed.png" : null);
+  }
+  const legacy = { ...first, reviewers: first.reviewers.map(({ avatarUrl: _avatar, ...person }) => person) };
+  assert(mrReview.output.parse(legacy).ok);
+});
+
 test("同一评审人的普通和必要关系折为一个人员，冲突意见不冒充同意，返回顺序不改变版本", async () => {
   let entries = [
     { id: 5, username: "bob", name: "Bob", review_state: "approved", type: "suggestion" },
