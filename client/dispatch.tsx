@@ -3,7 +3,8 @@ import { Text, View } from "react-native";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useRpc, type PluginScreenProps } from "@getpaseo/plugin/client";
 import { Modal, TextInput } from "@getpaseo/plugin/client/react-native";
-import { SettingsAction, SettingsCard, SettingsSection, SettingsSelect } from "@getpaseo/plugin/client/ui";
+import { SettingsAction, SettingsCard, SettingsSelect } from "@getpaseo/plugin/client/ui";
+import { WorkbenchCard } from "./workbench-ui.tsx";
 import type { RpcOutput } from "@getpaseo/plugin";
 import { prepareReview, reviewHistory, startReview, type ReviewOperation } from "../shared/dispatch.ts";
 import type { MrRef } from "../shared/detail.ts";
@@ -44,9 +45,11 @@ export function ReviewDispatch({ theme, host, navigation, reference, onManageRep
     {o.agentId && navigation ? <SettingsAction label="Review 结果" actionLabel="打开 Agent" onPress={() => navigation.openAgent({ agentId: o.agentId!, serverId: host.id })} /> : null}
     {!navigation && (o.workspaceId || o.agentId) ? <Text selectable style={muted}>{`请在 Paseo 中打开：${o.agentId ?? o.workspaceId}`}</Text> : null}
   </View>;
-  return <SettingsSection title="在 Paseo 审查">
+  return <WorkbenchCard theme={theme} title="Agent Review" icon="Bot" testID="gongfeng-agent-review">
+    <View style={{ padding: 12, gap: 12 }}>
     <SettingsCard><SettingsAction label="创建新的 Review Agent" hint="选择关联项目和现有预设，审查独立目录中的固定版本。" actionLabel="准备 Review" disabled={busy} onPress={() => begin()} /></SettingsCard>
-    <SettingsCard><SettingsAction label="历史 Review" actionLabel={history.isFetching ? "刷新中…" : "刷新历史"} disabled={history.isFetching || busy} onPress={() => { void history.refetch(); }} /></SettingsCard>
+    <Text accessibilityRole="header" style={[text, { fontWeight: "600" }]}>历史 Review</Text>
+    {history.isFetching ? <Text style={muted}>正在读取历史…</Text> : null}
     {history.isError || history.data && !history.data.ok ? <Text style={text}>{history.data && !history.data.ok ? explain(history.data.error) : "历史记录加载失败，请重试。"}</Text> : null}
     {history.data?.ok ? history.data.operations.slice().reverse().map(o => <SettingsCard key={o.id}>
       <SettingsAction label={`${stages[o.stage]} · ${o.mode === "diff" ? "仅 diff" : o.sourceSha?.slice(0, 12) ?? "版本未知"}`} hint={o.fetchedAt} actionLabel="查看 / 恢复" disabled={busy} onPress={() => begin(o.id)} />{resources(o)}
@@ -69,5 +72,6 @@ export function ReviewDispatch({ theme, host, navigation, reference, onManageRep
         {resources(operation)}
       </> : null}
     </Modal.Content></Modal>
-  </SettingsSection>;
+    </View>
+  </WorkbenchCard>;
 }

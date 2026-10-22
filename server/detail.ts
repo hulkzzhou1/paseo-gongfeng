@@ -1,6 +1,7 @@
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import type { RpcOutput } from "@getpaseo/plugin";
 import { z } from "zod";
+import { createHash } from "node:crypto";
 import { mrDetail, mrChanges, mrReview, mrNotes, shaSchema, type MrRef } from "../shared/detail.ts";
 import type { GongfengClient } from "./gongfeng.ts";
 
@@ -114,7 +115,10 @@ export async function readNotes(session: GongfengSession, ref: MrRef, page: numb
 
 const rawReview = z.object({
   id: z.number().int().positive(), reviewable_id: z.number().int().positive(), reviewable_type: z.literal("merge_request"), state: z.string(),
-  reviewers: z.array(z.object({ id: z.number().int().positive(), username: z.string(), name: z.string(), review_state: z.string() })),
+  approver_rule: z.number().int().min(-1).max(100).nullable().catch(null),
+  necessary_approver_rule: z.number().int().min(-1).max(100).nullable().catch(null),
+  updated_at: z.string().max(256).nullable().catch(null),
+  reviewers: z.array(z.object({ id: z.number().int().positive(), username: z.string(), name: z.string(), review_state: z.string(), type: z.string().nullable().catch(null) })),
 });
 
 export async function readReview(session: GongfengSession, ref: MrRef): Promise<RpcOutput<typeof mrReview>> {
@@ -122,8 +126,21 @@ export async function readReview(session: GongfengSession, ref: MrRef): Promise<
   if (!result.ok) return result;
   const parsed = rawReview.safeParse(result.data);
   if (!parsed.success || parsed.data.reviewable_id !== ref.mrId) return invalid;
+  const people = new Map<number, { id: number; username: string; name: string; state: string; type: string | null }>();
+  for (const person of parsed.data.reviewers) {
+    const previous = people.get(person.id);
+    people.set(person.id, { id: person.id, username: person.username, name: person.name,
+      state: !previous || previous.state === person.review_state ? person.review_state : "unknown",
+      type: previous?.type === "necessary" || person.type === "necessary" ? "necessary" : previous?.type ?? person.type });
+  }
+  const reviewers = [...people.values()];
+  const revision = createHash("sha256").update(JSON.stringify({ id: parsed.data.id, state: parsed.data.state, updatedAt: parsed.data.updated_at,
+    approverRule: parsed.data.approver_rule, necessaryApproverRule: parsed.data.necessary_approver_rule,
+    reviewers: parsed.data.reviewers.map(({ id, type, review_state }) => ({ id, type, state: review_state })).sort((a, b) => a.id - b.id || String(a.type).localeCompare(String(b.type)) || a.state.localeCompare(b.state)) })).digest("hex");
   return { ok: true, reviewId: parsed.data.id, mrId: parsed.data.reviewable_id, state: parsed.data.state,
-    reviewers: parsed.data.reviewers.map(r => ({ id: r.id, username: r.username, name: r.name, state: r.review_state })) };
+    revision,
+    approverRule: parsed.data.approver_rule, necessaryApproverRule: parsed.data.necessary_approver_rule,
+    reviewers };
 }
 
 export function registerDetail(server: PluginServerContext, api: GongfengClient) {

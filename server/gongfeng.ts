@@ -8,6 +8,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
 import { legacySite, siteUrlSchema } from "../shared/site.ts";
 import { accountSchema, tokenSchema } from "../shared/connection.ts";
+import { reviewEvent } from "../shared/reviewers.ts";
 import type { ApiError } from "../shared/api.ts";
 
 export type ApiResult = { ok: true; data: unknown; headers: Headers } | { ok: false; error: ApiError };
@@ -74,8 +75,13 @@ export function createGongfengClient() {
     }
   }
 
-  async function request(siteUrl: string, token: string, path: string, query: Record<string, string> = {}): Promise<ApiResult> {
-    if (!/^\/(user|projects(?:\/|$)|dashboard\/merge_requests$)/.test(path) || path.includes("..") || path.includes("?") || path.includes("#")) return { ok: false, error: "invalid_response" };
+  async function request(siteUrl: string, token: string, path: string, query: Record<string, string> = {}, mutation?: { method: "POST" | "DELETE" | "PUT"; body?: Record<string, unknown> }): Promise<ApiResult> {
+    if (!/^\/(user$|projects(?:\/|$)|dashboard\/merge_requests$)/.test(path) || path.includes("..") || path.includes("?") || path.includes("#")) return { ok: false, error: "invalid_response" };
+    if (mutation) {
+      const allowed = { POST: /^\/projects\/\d+\/merge_request\/\d+\/review\/batch_invite$/, DELETE: /^\/projects\/\d+\/merge_request\/\d+\/review\/dismissals$/, PUT: /^\/projects\/\d+\/merge_request\/\d+\/reviewer\/summary$/ };
+      if (!allowed[mutation.method].test(path)) return { ok: false, error: "invalid_response" };
+      if (mutation.method === "PUT" && !z.object({ reviewer_event: reviewEvent, summary: z.string().max(10000) }).strict().safeParse(mutation.body).success) return { ok: false, error: "invalid_response" };
+    }
     const url = new URL(`${siteUrl}/api/v3${path}`);
     url.search = new URLSearchParams(query).toString();
     const controller = new AbortController();
@@ -85,23 +91,27 @@ export function createGongfengClient() {
     const deadline = Date.now() + 10_000;
     const timer = setTimeout(abort, 10_000);
     try {
-      for (let attempt = 0; attempt < 3; attempt++) {
+      const attempts = mutation ? 1 : 3;
+      for (let attempt = 0; attempt < attempts; attempt++) {
         let error: ApiError = "network_error";
         let wait = 250 * 2 ** attempt;
         if (controller.signal.aborted) return { ok: false, error: "network_error" };
         try {
           const response = await fetch(url.toString(), {
-            method: "GET", headers: { "PRIVATE-TOKEN": token, Accept: "application/json" },
+            method: mutation?.method ?? "GET", headers: { "PRIVATE-TOKEN": token, Accept: "application/json", ...(mutation?.body ? { "Content-Type": "application/json" } : {}) },
+            ...(mutation?.body ? { body: JSON.stringify(mutation.body) } : {}),
             redirect: "error", signal: controller.signal,
           });
           if (response.ok) {
+            if (mutation?.method === "DELETE") { await response.body?.cancel().catch(() => {}); return { ok: true, data: null, headers: response.headers }; }
             const body = await response.text();
+            if (mutation && !body.trim()) return { ok: true, data: null, headers: response.headers };
             try { return { ok: true, data: JSON.parse(body), headers: response.headers }; }
             catch { return { ok: false, error: "invalid_response" }; }
           }
           await response.body?.cancel().catch(() => {});
           error = ({ 401: "unauthorized", 403: "forbidden", 404: "not_found", 429: "rate_limited" } as const)[response.status as 401] ?? "service_error";
-          if (response.status !== 429 && (response.status < 500 || response.status > 599)) return { ok: false, error };
+          if (mutation || response.status !== 429 && (response.status < 500 || response.status > 599)) return { ok: false, error };
           const retryAfter = response.headers.get("retry-after");
           if (retryAfter) {
             const requested = /^\d+$/.test(retryAfter) ? Number(retryAfter) * 1000 : Date.parse(retryAfter) - Date.now();
@@ -109,7 +119,7 @@ export function createGongfengClient() {
           }
         } catch { if (controller.signal.aborted) return { ok: false, error: "network_error" }; }
         // Do not shorten Retry-After to fit the request budget and retry too early.
-        if (attempt === 2 || wait >= deadline - Date.now()) return { ok: false, error };
+        if (attempt === attempts - 1 || wait >= deadline - Date.now()) return { ok: false, error };
         await delay(wait, undefined, { signal: controller.signal });
       }
       return { ok: false, error: "network_error" };
@@ -137,7 +147,12 @@ export function createGongfengClient() {
       const token = credentials.sites.find(site => site.siteUrl === siteUrl)!.token;
       const result = await verify(siteUrl, token);
       if (!result.ok) return result;
-      return { ...result, siteUrl, get: (path: string, query?: Record<string, string>) => request(siteUrl, token, path, query) };
+      return { ...result, siteUrl,
+        get: (path: string, query?: Record<string, string>) => request(siteUrl, token, path, query),
+        post: (path: string, body: Record<string, unknown>) => request(siteUrl, token, path, {}, { method: "POST", body }),
+        put: (path: string, body: Record<string, unknown>) => request(siteUrl, token, path, {}, { method: "PUT", body }),
+        delete: (path: string, query: Record<string, string>) => request(siteUrl, token, path, query, { method: "DELETE" }),
+      };
     },
     save: (token?: string, requestedSite?: string) => serialize(async () => {
       let previous: Credentials | null;

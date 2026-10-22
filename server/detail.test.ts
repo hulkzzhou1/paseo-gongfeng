@@ -129,6 +129,46 @@ test("Review自身ID不会替换MR身份，评论或Review失败不影响其他�
   assert(mrDetail.output.parse(await rpc(mrDetail, ref)).ok);
 });
 
+test("审查卡片保留普通和必要评审规则，缺失或异常的可选规则不伪造通过", async () => {
+  let extra: Record<string, unknown> = { approver_rule: -1, necessary_approver_rule: 1 };
+  let reviewerType: string | undefined = "necessary";
+  await connect(url => Response.json(url.pathname.endsWith("/review") ? {
+    id: 900, reviewable_id: 100, reviewable_type: "merge_request", state: "approving", ...extra,
+    reviewers: [{ id: 5, username: "bob", name: "Bob", review_state: "approved", type: reviewerType }],
+  } : project));
+  const full = mrReview.output.parse(await rpc(mrReview, ref));
+  assert(full.ok);
+  assert.equal(full.state, "approving");
+  assert.equal(full.approverRule, -1);
+  assert.equal(full.necessaryApproverRule, 1);
+  assert.equal(full.reviewers[0].type, "necessary");
+  extra = {}; reviewerType = undefined;
+  const legacy = mrReview.output.parse(await rpc(mrReview, ref));
+  assert(legacy.ok);
+  assert.equal(legacy.approverRule, null);
+  assert.equal(legacy.necessaryApproverRule, null);
+  assert.equal(legacy.reviewers[0].type, null);
+  extra = { approver_rule: "all", necessary_approver_rule: 1.5 };
+  const invalidRules = mrReview.output.parse(await rpc(mrReview, ref));
+  assert(invalidRules.ok);
+  assert.equal(invalidRules.approverRule, null);
+  assert.equal(invalidRules.necessaryApproverRule, null);
+});
+
+test("同一评审人的普通和必要关系折为一个人员，冲突意见不冒充同意，返回顺序不改变版本", async () => {
+  let entries = [
+    { id: 5, username: "bob", name: "Bob", review_state: "approved", type: "suggestion" },
+    { id: 5, username: "bob", name: "Bob", review_state: "approving", type: "necessary" },
+  ];
+  await connect(() => Response.json({ id: 900, reviewable_id: 100, reviewable_type: "merge_request", state: "approving", reviewers: entries }));
+  const first = mrReview.output.parse(await rpc(mrReview, ref)); assert(first.ok);
+  assert.equal(first.reviewers.length, 1); assert.equal(first.reviewers[0].type, "necessary"); assert.equal(first.reviewers[0].state, "unknown");
+  entries.reverse();
+  const reversed = mrReview.output.parse(await rpc(mrReview, ref)); assert(reversed.ok); assert.equal(reversed.revision, first.revision);
+  entries = entries.map(p => ({ ...p, review_state: "approved" }));
+  const approved = mrReview.output.parse(await rpc(mrReview, ref)); assert(approved.ok); assert.equal(approved.reviewers[0].state, "approved"); assert.notEqual(approved.revision, first.revision);
+});
+
 test("缺少changes版本元数据仍显示差异，但不宣称版本一致", async () => {
   await connect(url => Response.json(url.pathname === "/api/v3/projects/10" ? project : url.pathname.endsWith("/changes") ? { files: [file] } : mr));
   const result = mrChanges.output.parse(await rpc(mrChanges, ref));

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
@@ -16,6 +16,21 @@ export function workbenchStyles(theme: Theme) {
     panel: { borderWidth: 1, borderColor: c.border, borderRadius: 8, overflow: "hidden", backgroundColor: c.surface0 },
     panelHeader: { paddingHorizontal: 12, paddingVertical: 8, backgroundColor: c.surface1, borderBottomWidth: 1, borderColor: c.border, flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 },
   });
+}
+
+export function WorkbenchCard({ theme, title, icon, tag, right, testID, children }: {
+  theme: Theme; title: string; icon: string; tag?: string; right?: ReactNode; testID?: string; children: ReactNode;
+}) {
+  const styles = workbenchStyles(theme), c = theme.colors;
+  return <View testID={testID} style={[styles.panel, { borderLeftWidth: 3, borderLeftColor: c.accent }]}>
+    <View style={styles.panelHeader}>
+      <Icon name={icon} size={18} color={c.accent} />
+      {tag ? <Text style={{ color: c.accent, fontSize: 12, fontWeight: "700", paddingHorizontal: 6, paddingVertical: 3, backgroundColor: c.surface0, borderRadius: 4 }}>{tag}</Text> : null}
+      <Text accessibilityRole="header" style={[styles.text, { fontWeight: "700", fontSize: 15, flex: 1 }]}>{title}</Text>
+      {right}
+    </View>
+    {children}
+  </View>;
 }
 
 export function Action({ theme, label, icon, onPress, disabled, primary, selected, autoFocus, quiet }: {

@@ -5,8 +5,7 @@ import { ExternalLink } from "@getpaseo/plugin/client/ui";
 import { mrTapd, mrCi } from "../shared/additions.ts";
 import type { MrRef, MrDetail } from "../shared/detail.ts";
 import { errorMessages } from "./errors.ts";
-import { Icon } from "@getpaseo/plugin/client/react-native";
-import { Action, mono, workbenchStyles } from "./workbench-ui.tsx";
+import { Action, WorkbenchCard, mono, workbenchStyles } from "./workbench-ui.tsx";
 const message = (error: string, ci = false) => error === "version_changed" ? "MR 版本已变化或检查版本不一致，请刷新 MR 详情后重试。" : error === "version_unknown" ? "无法确认 MR 源提交，CI 状态未知。" : error === "forbidden" ? ci ? "无权限读取此区块。CI 摘要接口可能要求 Developer 权限，请在原站核对；不会自动扩大权限。" : "无权限读取 TAPD 关联，请在工蜂原站核对。" : errorMessages[error] ?? "无法连接 Paseo，请重试。";
 export function MRAdditions({ reference, detail, theme }: { reference: MrRef; detail?: MrDetail; theme: PluginScreenProps["theme"] }) {
   const tapdRpc = useRpc(mrTapd), ciRpc = useRpc(mrCi);
@@ -21,13 +20,7 @@ export function MRAdditions({ reference, detail, theme }: { reference: MrRef; de
   const incomplete = ci.hasNextPage || (last && (last.incomplete || checks.length < last.total)) || (ci.data && new Set(ci.data.pages.map(page=>page.total)).size > 1);
   const styles = workbenchStyles(theme), c = theme.colors;
   return <View style={{ gap: 16 }}>
-    <View style={[styles.panel, { borderLeftWidth: 3, borderLeftColor: c.accent }]}>
-      <View style={styles.panelHeader}>
-        <Icon name="ClipboardList" size={18} color={c.accent} />
-        <Text style={{ color: c.accent, fontSize: 12, fontWeight: "700", paddingHorizontal: 6, paddingVertical: 3, backgroundColor: c.surface0, borderRadius: 4 }}>TAPD</Text>
-        <Text style={[styles.text, { fontWeight: "700", fontSize: 15, flex: 1 }]}>关联需求</Text>
-        <Action theme={theme} quiet label={tapd.isFetching ? "加载中…" : "刷新关联"} icon="RefreshCw" disabled={tapd.isFetching} onPress={() => { void tapd.refetch(); }} />
-      </View>
+    <WorkbenchCard theme={theme} title="关联需求" icon="ClipboardList" tag="TAPD" testID="gongfeng-tapd-card">
       {tapd.isError || tapd.data && !tapd.data.ok ? <Text style={[styles.text, { padding: 12 }]}>{tapd.data && !tapd.data.ok ? message(tapd.data.error) : "无法读取关联，请重试。"}</Text> : null}
       {tapd.data?.ok && !tapd.data.items.length ? <Text style={[styles.muted, { padding: 16 }]}>此 MR 暂未关联 TAPD 工作项。</Text> : null}
       {tapd.data?.ok && tapd.data.incomplete ? <Text style={[styles.text, { padding: 12 }]}>关联数量过多，显示已截断，请在原站查看完整记录。</Text> : null}
@@ -39,13 +32,8 @@ export function MRAdditions({ reference, detail, theme }: { reference: MrRef; de
           {item.url ? <ExternalLink href={item.url} accessibilityLabel={`在 TAPD 打开 ${item.title}`}><Text style={{ color: c.accent, fontSize: 13, fontWeight: "600", paddingVertical: 8 }}>在 TAPD 查看 ↗</Text></ExternalLink> : <Text style={styles.muted}>原站链接不可用</Text>}
         </View>
       </View>)}
-    </View>
-    <View style={styles.panel}>
-      <View style={styles.panelHeader}>
-        <Icon name="ListChecks" size={18} color={c.foregroundMuted} />
-        <Text style={[styles.text, { fontWeight: "600", flex: 1 }]}>CI 检查</Text>
-        <Action theme={theme} quiet label={ci.isFetching ? "加载中…" : "刷新检查"} icon="RefreshCw" disabled={!detail?.sourceSha || ci.isFetching} onPress={() => { void ci.refetch(); }} />
-      </View>
+    </WorkbenchCard>
+    <WorkbenchCard theme={theme} title="CI 检查" icon="ListChecks" testID="gongfeng-ci-card">
       <View style={{ padding: 12, gap: 8 }}>
         {detail?.sourceSha ? <Text selectable style={[styles.muted, { fontFamily: mono }]}>源项目 {detail.sourceProjectId} · {detail.sourceSha.slice(0, 12)}</Text> : <Text style={styles.text}>源提交尚未确认，检查状态未知。</Text>}
         {ci.isError ? <Text style={styles.text}>{message(ci.error.message, true)} 已加载结果仅对应上方提交，其他详情保留。</Text> : null}
@@ -59,6 +47,6 @@ export function MRAdditions({ reference, detail, theme }: { reference: MrRef; de
         {ci.hasNextPage ? <Action theme={theme} label="继续加载检查" disabled={ci.isFetching} onPress={() => { void ci.fetchNextPage(); }} /> : null}
         <Text style={styles.muted}>仅展示提交检查摘要，完整流水线和日志请查看原站。</Text>
       </View>
-    </View>
+    </WorkbenchCard>
   </View>;
 }

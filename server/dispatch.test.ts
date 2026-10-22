@@ -93,6 +93,20 @@ test("并发重复提交及插件重载后恢复不重复创建工作区或 Agen
   const history = await rpc(reviewHistory, reference); assert(history.ok); assert.equal(history.operations[0].stage, "completed");
 });
 
+test("新增审查卡片字段后仍能读取并恢复旧版 Review 历史", async () => {
+  const prepared = await rpc(prepareReview, reference); assert(prepared.ok);
+  const file = join(home, "plugin-data/gongfeng-workbench/reviews.json");
+  const records = JSON.parse(await readFile(file, "utf8"));
+  records[0].review = { ok: true, reviewId: 100, mrId: 91, state: "approving", reviewers: [{ id: 8, name: "Bob", username: "bob", state: "approved" }] };
+  await writeFile(file, JSON.stringify(records));
+  stop(); start();
+  const history = await rpc(reviewHistory, reference); assert(history.ok);
+  assert.equal(history.operations[0].id, prepared.operation.id);
+  const restored = await rpc(prepareReview, { ...reference, operationId: prepared.operation.id }); assert(restored.ok);
+  assert.equal(restored.operation.id, prepared.operation.id);
+  assert.equal(workspaceCreates.length, 0); assert.equal(agentCreates.length, 0);
+});
+
 test("Agent 启动失败保留工作区，重载恢复同一工作区和固定版本", async () => {
   const prepared = await rpc(prepareReview, reference); assert(prepared.ok); const input = { operationId: prepared.operation.id, profileId: "reviewer" }; failAgent = true;
   const failed = await rpc(startReview, input); assert(!failed.ok); assert.equal(failed.error, "agent_failed"); assert(failed.operation?.workspaceId);

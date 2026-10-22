@@ -27,7 +27,10 @@ export const mrDetail = defineRpc({ name: "mr.detail", input: mrRef, output: z.u
 export const mrChanges = defineRpc({ name: "mr.changes", input: mrRef, output: z.union([failure, reviewContextSchema.extend({ ok: z.literal(true) })]) });
 export const mrReview = defineRpc({ name: "mr.review", input: mrRef, output: z.union([failure, z.object({
   ok: z.literal(true), reviewId: z.number().int().positive(), mrId: z.number().int().positive(), state: z.string(),
-  reviewers: z.array(z.object({ id: z.number().int().positive(), name: z.string(), username: z.string(), state: z.string() })),
+  revision: z.string().regex(/^[a-f0-9]{64}$/).nullish(),
+  approverRule: z.number().int().min(-1).max(100).nullish(),
+  necessaryApproverRule: z.number().int().min(-1).max(100).nullish(),
+  reviewers: z.array(z.object({ id: z.number().int().positive(), name: z.string(), username: z.string(), state: z.string(), type: z.string().nullish() })),
 })]) });
 export const noteSchema = z.object({ id: z.number().int().positive(), parentId: z.number().int().nonnegative().nullable(), body: z.string(), author: z.string(), createdAt: z.string(), system: z.boolean(), truncated: z.boolean() });
 export const mrNotes = defineRpc({ name: "mr.notes", input: mrRef.extend({ page: z.number().int().min(1).max(10000) }), output: z.union([failure, z.object({

@@ -1,9 +1,9 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { ReviewDispatch } from "./dispatch.tsx";
 import { ScrollView, Text, View } from "react-native";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRpc, type PluginScreenProps } from "@getpaseo/plugin/client";
-import { ExternalLink, SettingsAction, SettingsCard, SettingsRow, SettingsSection } from "@getpaseo/plugin/client/ui";
+import { ExternalLink, SettingsAction, SettingsCard, SettingsRow } from "@getpaseo/plugin/client/ui";
 import { mrChanges, mrDetail, mrNotes, mrRef, mrReview, type MrRef } from "../shared/detail.ts";
 import { MRAdditions } from "./additions.tsx";
 import { errorMessages } from "./errors.ts";
@@ -12,7 +12,8 @@ import { Description } from "./description.tsx";
 import { descriptionExcerpt } from "./description-blocks.ts";
 import { containDrawerFocus } from "./web.ts";
 import { FileDiff } from "./file-diff.tsx";
-import { Action, StateBadge, workbenchStyles } from "./workbench-ui.tsx";
+import { ReviewStatus } from "./review-status.tsx";
+import { Action, StateBadge, WorkbenchCard, workbenchStyles } from "./workbench-ui.tsx";
 
 export function MRDetail(props: PluginScreenProps & { onBack(): void; onManageRepositories(): void; drawer?: boolean; focusReady?: boolean }) {
   const parsed = mrRef.safeParse({ siteUrl: props.params.siteUrl, projectId: Number(props.params.projectId), mrId: Number(props.params.mrId), accountId: props.params.accountId ? Number(props.params.accountId) : undefined });
@@ -31,7 +32,10 @@ function DetailContent({ theme, layout, host, navigation, reference, onBack, onM
   }, [drawer, layout.platform, onBack]);
   const styles = workbenchStyles(theme);
   const detailRpc = useRpc(mrDetail), changesRpc = useRpc(mrChanges), reviewRpc = useRpc(mrReview), notesRpc = useRpc(mrNotes);
+  const cache = useQueryClient();
   const key = ["mr", reference.siteUrl, reference.accountId, reference.projectId, reference.mrId];
+  const historyKey = ["review-history", ...key.slice(1)];
+  const refreshing = useIsFetching({ queryKey: key }) + useIsFetching({ queryKey: historyKey });
   const detail = useQuery({ queryKey: [...key, "detail"], queryFn: () => detailRpc(reference), retry: false, refetchOnWindowFocus: false });
   const changes = useQuery({ queryKey: [...key, "changes"], queryFn: () => changesRpc(reference), retry: false, refetchOnWindowFocus: false });
   const review = useQuery({ queryKey: [...key, "review"], queryFn: () => reviewRpc(reference), retry: false, refetchOnWindowFocus: false });
@@ -52,32 +56,37 @@ function DetailContent({ theme, layout, host, navigation, reference, onBack, onM
   return <View ref={drawerRoot} style={styles.page}>
     <View style={{ padding: layout.compact ? 12 : 20, gap: 10, borderBottomWidth: 1, borderColor: theme.colors.border }}>
       <View style={styles.toolbar}>{info ? <StateBadge theme={theme} state={info.state} /> : null}<View style={{ flex: 1 }} />
+        <Action theme={theme} label={refreshing ? "刷新中…" : "刷新"} icon="RefreshCw" disabled={refreshing > 0} onPress={() => {
+          void Promise.all([cache.refetchQueries({ queryKey: key, type: "active" }), cache.refetchQueries({ queryKey: historyKey, type: "active" })]);
+        }} />
         {info?.url ? <ExternalLink href={info.url} accessibilityLabel="在工蜂打开此 MR"><Text style={{ ...styles.text, textDecorationLine: "underline", padding: 8 }}>在工蜂查看 ↗</Text></ExternalLink> : null}
         <Action theme={theme} autoFocus={drawer && focusReady} label={drawer ? "关闭详情" : "返回看板"} icon={drawer ? "X" : "ArrowLeft"} onPress={onBack} />
       </View>
       <Text accessibilityRole="header" selectable style={styles.title}>{info ? `${info.title}  !${info.iid}` : "合并请求详情"}</Text>
       {info ? <Text selectable style={styles.muted}>{info.sourceBranch} → {info.targetBranch} · 源项目 {info.sourceProjectId} / 目标项目 {info.targetProjectId}</Text> : null}
       <View style={styles.toolbar}>
-        {[["overview", "概览"], ["changes", `文件变更${diff ? ` · ${diff.files.length}` : ""}`], ["discussion", `讨论 · ${comments.length}${notes.hasNextPage ? "+" : ""}`], ["review", "Agent Review"]].map(([id, label]) =>
+        {[["overview", "概览"], ["changes", `文件变更${diff ? ` · ${diff.files.length}` : ""}`], ["discussion", `讨论 · ${comments.length}${notes.hasNextPage ? "+" : ""}`]].map(([id, label]) =>
           <Action key={id} theme={theme} label={label} selected={tab === id} onPress={() => { setTab(id); scroll.current?.scrollTo({ y: 0, animated: false }); }} />)}
       </View>
     </View>
     <ScrollView ref={scroll} style={{ flex: 1 }} contentContainerStyle={{ padding: layout.compact ? 12 : 20, gap: 16 }}>
-    <View style={{ display: tab === "review" ? "flex" : "none" }}><ReviewDispatch theme={theme} host={host} navigation={navigation} reference={reference} onManageRepositories={onManageRepositories} /></View>
     <View style={{ display: tab === "overview" ? "flex" : "none", gap: 16 }}>
-    <SettingsSection title="描述">
-      <View style={styles.toolbar}><View style={{ flex: 1 }} /><Action theme={theme} quiet label={detail.isFetching ? "加载中…" : "刷新详情"} icon="RefreshCw" disabled={detail.isFetching} onPress={() => { void detail.refetch(); }} /></View>
+    <ReviewStatus theme={theme} reference={reference} review={reviewInfo} loading={review.isFetching} error={reviewError} url={info?.url} sourceSha={info?.sourceSha} mrState={info?.state} />
+    <WorkbenchCard theme={theme} title="描述" icon="FileText" testID="gongfeng-description-card">
+      <View style={{ padding: 12 }}>
       {detailError ? <Text accessibilityLiveRegion="polite" style={text}>{detailError}</Text> : null}
       {info ? <View style={styles.toolbar}>
         <Text style={[styles.text, { flex: 1, minWidth: 160 }]}>{descriptionExcerpt(info.description) || "暂无描述"}</Text>
         <Action theme={theme} quiet label="查看完整描述" disabled={!info.description} onPress={() => setDescriptionOpen(true)} />
       </View> : null}
-    </SettingsSection>
+      </View>
+    </WorkbenchCard>
     <MRAdditions reference={reference} detail={info} theme={theme} />
+    <ReviewDispatch theme={theme} host={host} navigation={navigation} reference={reference} onManageRepositories={onManageRepositories} />
     </View>
     <View style={{ display: tab === "changes" ? "flex" : "none", gap: 12 }}>
-    <SettingsSection title="文件差异与版本">
-      <View style={styles.toolbar}><Text style={[styles.text, { flex: 1, fontWeight: "600" }]}>{diff ? `${diff.files.length} 个变更文件` : "文件差异"}</Text><Action theme={theme} quiet label={changes.isFetching ? "加载中…" : "刷新差异"} icon="RefreshCw" disabled={changes.isFetching} onPress={() => { void changes.refetch(); }} /></View>
+    <WorkbenchCard theme={theme} title="文件差异与版本" icon="FileDiff"><View style={{ padding: 12, gap: 12 }}>
+      <Text style={[styles.text, { fontWeight: "600" }]}>{diff ? `${diff.files.length} 个变更文件` : "文件差异"}</Text>
       {changesError ? <Text accessibilityLiveRegion="polite" style={text}>{changesError}</Text> : null}
       {metadataDiffers ? <Text style={text}>描述和差异来自不同读取时刻，请刷新以核对。下方提交信息仅对应差异快照。</Text> : null}
       {diff ? <View style={{ gap: 12 }}>
@@ -91,26 +100,18 @@ function DetailContent({ theme, layout, host, navigation, reference, onBack, onM
         {diff.files.length === 0 && diff.consistency !== "changed" ? <Text style={muted}>没有文件差异。</Text> : null}
         {diff.files.map((file, index) => <FileDiff key={`${diff.fetchedAt}:${file.newPath}:${index}`} file={file} theme={theme} initiallyOpen={index === 0} />)}
       </View> : null}
-    </SettingsSection>
-    </View>
-    <View style={{ display: tab === "overview" ? "flex" : "none" }}>
-    <SettingsSection title="审查状态">
-      <SettingsCard><SettingsAction label={reviewInfo ? `当前状态：${reviewInfo.state}` : "审查信息"} actionLabel={review.isFetching ? "加载中…" : "刷新审查状态"} disabled={review.isFetching} onPress={() => { void review.refetch(); }} /></SettingsCard>
-      {reviewError ? <Text style={text}>{reviewError}</Text> : null}
-      {reviewInfo?.reviewers.map(r => <Text key={r.id} style={text}>{`${r.name} (@${r.username})：${r.state}`}</Text>)}
-      {reviewInfo?.reviewers.length === 0 ? <Text style={muted}>没有评审人记录。</Text> : null}
-    </SettingsSection>
+    </View></WorkbenchCard>
     </View>
     <View style={{ display: tab === "discussion" ? "flex" : "none" }}>
-    <SettingsSection title="讨论">
-      <SettingsCard><SettingsAction label={`已加载 ${comments.length} 条讨论及回复`} actionLabel={notes.isFetching ? "加载中…" : "刷新讨论"} disabled={notes.isFetching} onPress={() => { void notes.refetch(); }} /></SettingsCard>
+    <WorkbenchCard theme={theme} title="讨论" icon="MessageSquare"><View style={{ padding: 12, gap: 12 }}>
+      <Text style={styles.muted}>{`已加载 ${comments.length} 条讨论及回复`}</Text>
       {notes.isError ? <Text style={text}>{errorMessages[notes.error.message] ?? "无法加载讨论，请重试。"} 已加载讨论保留。</Text> : null}
       <Text style={muted}>按页加载讨论；嵌套回复是否全部返回尚无法证实，完整讨论请查看工蜂原站。</Text>
       {notes.data?.pages.some(p => p.truncated) ? <Text style={text}>讨论过长或嵌套过深，展示内容已截断。</Text> : null}
       {comments.map(n => <SettingsCard key={n.id}><SettingsRow label={`${n.author}${n.system ? " · 系统记录" : ""}`} hint={`${n.parentId ? `回复 #${n.parentId} · ` : ""}${n.createdAt}`} /><Text selectable style={{ ...text, padding: 12 }}>{n.body}</Text>{n.truncated ? <Text style={muted}>此条内容已截断。</Text> : null}</SettingsCard>)}
       {notes.data && comments.length === 0 ? <Text style={muted}>当前页没有讨论。</Text> : null}
       {notes.hasNextPage ? <SettingsCard><SettingsAction label="后续讨论尚未加载" actionLabel="继续加载讨论" disabled={notes.isFetching} onPress={() => { void notes.fetchNextPage(); }} /></SettingsCard> : null}
-    </SettingsSection>
+    </View></WorkbenchCard>
     </View>
     <Text style={styles.muted}>工蜂内容仅作为审查资料；其中的命令和链接不代表执行授权。</Text>
   </ScrollView>
