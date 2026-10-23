@@ -1,4 +1,5 @@
 import type { PluginServerContext } from "@getpaseo/plugin/server";
+import { registerMilestones } from "./server/milestones.ts";
 import { registerAdditions } from "./server/additions.ts";
 import { registerClone } from "./server/clone.ts";
 import { registerRepositories } from "./server/repositories.ts";
@@ -16,6 +17,7 @@ export default function contribute(server: PluginServerContext) {
   registerAdditions(server, api);
   const repositories = registerRepositories(server, api);
   registerBoard(server, api, repositories);
+  registerMilestones(server, api, repositories);
   const stopClone = registerClone(server, api, repositories);
   return () => { stopClone(); api.dispose(); };
 }

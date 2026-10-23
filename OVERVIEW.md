@@ -4,6 +4,10 @@ Manage Gongfeng repositories and merge requests in Paseo. Browse accessible merg
 
 Open a merge request in a floating drawer to view its description, line-numbered changes, discussion, reviewers, related TAPD items and commit check summaries. Discussion and descriptions support common Markdown and restricted HTML, including image badges. Search and discussion are paginated; the interface shows when more results remain.
 
+## Milestones
+
+Browse milestones across added repositories, filter by repository and state, and search loaded titles and descriptions. Floating details show paginated issues and merge requests with separate closed-issue and merged-MR counts. Create, edit, close, reopen or explicitly confirm deletion; edit associations as a draft, confirming before moving items from another milestone. These actions write to the configured Gongfeng API only after saving or confirming. Each save may partially succeed; check the refreshed state before retrying an uncertain outcome. Deleting a milestone preserves its issues and merge requests. Statistics and search cover loaded data.
+
 ## Setup
 
 Requires Paseo 0.12.0 or later, a Gongfeng site compatible with the OpenAPI v3 endpoints used by this plugin, and network access from the daemon to that site. Set the HTTPS site root and a Private Token in the plugin's connection settings. The daemon uses one active Gongfeng account, shared by its authorized clients. Credentials and repository associations are retained separately for each site. Compatibility with every Gongfeng deployment, the public SaaS account flow and native mobile clients has not been fully verified.

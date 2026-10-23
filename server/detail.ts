@@ -1,3 +1,4 @@
+import { rawMilestone } from "./milestones.ts";
 import { avatarUrl } from "./avatar.ts";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import type { RpcOutput } from "@getpaseo/plugin";
@@ -10,6 +11,7 @@ export type GongfengSession = Extract<Awaited<ReturnType<GongfengClient["session
 const rawDetail = z.object({
   id: z.number().int().positive(), iid: z.number().int().positive(), title: z.string(), description: z.string().nullable().default(""), state: z.string(),
   source_project_id: z.number().int().positive(), target_project_id: z.number().int().positive(), source_branch: z.string(), target_branch: z.string(),
+  milestone: rawMilestone.nullish(),
   source_commit: z.unknown().optional(), base_commit: z.unknown().optional(), target_commit: z.unknown().optional(), updated_at: z.string().nullable().optional(),
 });
 const projectPath = z.object({ id: z.number().int().positive(), path_with_namespace: z.string().min(1) });
@@ -33,6 +35,7 @@ export async function readDetail(session: GongfengSession, ref: MrRef): Promise<
     sourceSha: shaSchema.safeParse(data.source_commit).success ? data.source_commit as string : null,
     baseSha: shaSchema.safeParse(data.base_commit).success ? data.base_commit as string : null,
     targetSha: shaSchema.safeParse(data.target_commit).success ? data.target_commit as string : null,
+    milestone: data.milestone ? { id: data.milestone.id, iid: data.milestone.iid, projectId: data.milestone.project_id, title: data.milestone.title, state: data.milestone.state, dueDate: data.milestone.due_date ?? null } : null,
     updatedAt: data.updated_at ?? null, url,
   } };
 }

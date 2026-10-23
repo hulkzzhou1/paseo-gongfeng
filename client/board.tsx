@@ -14,12 +14,12 @@ import { Icon, Modal, TextInput } from "@getpaseo/plugin/client/react-native";
 import { Drawer } from "./drawer.tsx";
 import { MRDetail } from "./detail.tsx";
 import { ConnectionSettings } from "./connection.tsx";
-import { Action, StateBadge, workbenchStyles } from "./workbench-ui.tsx";
+import { Action, StateBadge, WorkbenchNavigation, workbenchStyles } from "./workbench-ui.tsx";
 import { containDrawerFocus } from "./web.ts";
 
 const states = [["opened", "开放"], ["merged", "已合入"], ["closed", "已关闭"], ["all", "全部状态"]] as const;
 
-export function Board(props: PluginScreenProps & { onManageRepositories(): void }) {
+export function Board(props: PluginScreenProps & { onManageRepositories(): void; onOpenMilestones(params?: Record<string, string>): void }) {
   const { theme, layout, onManageRepositories } = props;
   const [selectedMr, setSelectedMr] = useState<MrRef>();
   const [width, setWidth] = useState(0);
@@ -77,11 +77,7 @@ export function Board(props: PluginScreenProps & { onManageRepositories(): void 
         <Action theme={theme} dense={!compact} iconOnly label="工蜂设置" icon="Settings" onPress={() => { setFilterMenu(null); setSettingsOpen(true); }} />
         <Action theme={theme} dense={!compact} iconOnly label="刷新工作台" icon="RefreshCw" disabled={fetching} onPress={refreshBoard} />
       </View>
-      <View testID="gongfeng-board-navigation" style={{ ...styles.toolbar, paddingHorizontal: compact ? 12 : 16, paddingVertical: compact ? 6 : 7, borderBottomWidth: 1, borderColor: theme.colors.border }}>
-        <Action theme={theme} dense={!compact} pill label="合并请求" icon="GitPullRequest" selected onPress={() => setFilterMenu(null)} />
-        <Action theme={theme} dense={!compact} pill label="仓库管理" icon="GitBranch" selected={false} onPress={() => { setFilterMenu(null); onManageRepositories(); }} />
-        {!compact ? <Text numberOfLines={1} style={[styles.muted, { flex: 1, textAlign: "right" }]}>{siteUrl ?? "请先配置工蜂站点"}</Text> : null}
-      </View>
+      <WorkbenchNavigation theme={theme} compact={compact} selected="mrs" siteUrl={siteUrl} onMergeRequests={() => setFilterMenu(null)} onMilestones={() => props.onOpenMilestones()} onRepositories={onManageRepositories} />
       <View testID="gongfeng-board-filters" style={{ ...styles.toolbar, paddingHorizontal: compact ? 12 : 16, paddingVertical: compact ? 6 : 7, borderBottomWidth: 1, borderColor: theme.colors.border }}>
         <View style={styles.toolbar}>
           <Action theme={theme} dense={!compact} pill label="全部" selected={relation === "all"} onPress={() => { setFilterMenu(null); setRelation("all"); }} />
@@ -143,7 +139,7 @@ export function Board(props: PluginScreenProps & { onManageRepositories(): void 
     </View>
     {selectedMr && selectedMr.siteUrl === siteUrl ? <Drawer theme={theme} width={fullDrawer ? width : Math.min(width * 0.7, 1000)} onDismiss={closeDrawer}>{(close, ready) =>
       <MRDetail {...props} layout={{ ...layout, compact: fullDrawer || width * 0.7 < 650 }} params={{ projectId: String(selectedMr.projectId), mrId: String(selectedMr.mrId), accountId: String(selectedMr.accountId), ...(selectedMr.siteUrl ? { siteUrl: selectedMr.siteUrl } : {}) }}
-        drawer focusReady={ready} onBack={close} />
+        drawer focusReady={ready} onBack={close} onOpenMilestone={reference => props.onOpenMilestones({ siteUrl: reference.siteUrl ?? "", accountId: String(reference.accountId), projectId: String(reference.projectId), milestoneId: String(reference.milestoneId) })} />
     }</Drawer> : null}
     <Modal title="工蜂配置" open={settingsOpen} onOpenChange={setSettingsOpen}><Modal.Content>
       {settingsOpen ? <ConnectionSettings {...props} /> : null}

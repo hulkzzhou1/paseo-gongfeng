@@ -3,6 +3,7 @@ import { ScrollView, Text, View } from "react-native";
 import { useInfiniteQuery, useIsFetching, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRpc, type PluginScreenProps } from "@getpaseo/plugin/client";
 import { ExternalLink, SettingsCard, SettingsRow } from "@getpaseo/plugin/client/ui";
+import type { MilestoneReference } from "../shared/milestones.ts";
 import { mrChanges, mrDetail, mrNotes, mrRef, mrReview, type MrRef } from "../shared/detail.ts";
 import { MRAdditions } from "./additions.tsx";
 import { errorMessages } from "./errors.ts";
@@ -14,13 +15,13 @@ import { FileDiff } from "./file-diff.tsx";
 import { ReviewStatus } from "./review-status.tsx";
 import { Action, StateBadge, WorkbenchCard, workbenchStyles } from "./workbench-ui.tsx";
 
-export function MRDetail(props: PluginScreenProps & { onBack(): void; drawer?: boolean; focusReady?: boolean }) {
+export function MRDetail(props: PluginScreenProps & { onBack(): void; drawer?: boolean; focusReady?: boolean; onOpenMilestone?(reference: MilestoneReference): void }) {
   const parsed = mrRef.safeParse({ siteUrl: props.params.siteUrl, projectId: Number(props.params.projectId), mrId: Number(props.params.mrId), accountId: props.params.accountId ? Number(props.params.accountId) : undefined });
   if (!parsed.success) return <Text style={{ color: props.theme.colors.foreground }}>MR 身份参数无效，请返回看板重新选择。</Text>;
   return <DetailContent {...props} reference={parsed.data} key={`${parsed.data.siteUrl}:${parsed.data.accountId}:${parsed.data.projectId}:${parsed.data.mrId}`} />;
 }
 
-function DetailContent({ theme, layout, reference, onBack, drawer, focusReady = true }: PluginScreenProps & { reference: MrRef; onBack(): void; drawer?: boolean; focusReady?: boolean }) {
+function DetailContent({ theme, layout, reference, onBack, drawer, focusReady = true, onOpenMilestone }: PluginScreenProps & { reference: MrRef; onBack(): void; drawer?: boolean; focusReady?: boolean; onOpenMilestone?(reference: MilestoneReference): void }) {
   const [tab, setTab] = useState("overview");
   const [descriptionOpen, setDescriptionOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
@@ -79,6 +80,11 @@ function DetailContent({ theme, layout, reference, onBack, drawer, focusReady = 
       </View> : null}
       </View>
     </WorkbenchCard>
+    {info?.milestone ? <WorkbenchCard theme={theme} title="里程碑" icon="Flag"><View style={{ padding: 12, gap: 6 }}>
+      <Text style={[styles.text, { fontWeight: "600" }]}>{info.milestone.title}</Text>
+      <Text style={styles.muted}>{info.milestone.state === "active" ? "活动中" : info.milestone.state === "closed" ? "已关闭" : info.milestone.state}{info.milestone.dueDate ? ` · 截止 ${info.milestone.dueDate.slice(0, 10)}` : ""}</Text>
+      {onOpenMilestone && reference.accountId ? <Action theme={theme} quiet label="查看里程碑" onPress={() => onOpenMilestone({ siteUrl: reference.siteUrl, accountId: reference.accountId!, projectId: info.milestone!.projectId, milestoneId: info.milestone!.id })} /> : null}
+    </View></WorkbenchCard> : null}
     <MRAdditions reference={reference} detail={info} theme={theme} />
     </View>
     <View style={{ display: tab === "changes" ? "flex" : "none", gap: 12 }}>

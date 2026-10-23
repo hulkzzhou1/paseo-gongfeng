@@ -1,4 +1,8 @@
 export const errorMessages: Record<string, string> = {
+  stale_milestone: "里程碑内容或关联已变化，请刷新后重新操作。",
+  outcome_unknown: "操作结果不确定，请刷新核对后再操作，避免重复提交。",
+  partial_update: "部分更改未完成，请刷新并核对实际结果。",
+  conflict: "对象归属已变化，请刷新后重新选择。",
   unconfigured: "请先在工蜂连接设置中配置账号。",
   unauthorized: "Token 无效或已过期，请在工蜂连接设置中更换。",
   forbidden: "当前账号无权访问这些工蜂数据。",

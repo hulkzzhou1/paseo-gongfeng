@@ -79,8 +79,17 @@ export function createGongfengClient() {
     if (!/^\/(user$|projects(?:\/|$)|dashboard\/merge_requests$)/.test(path) || path.includes("..") || path.includes("?") || path.includes("#")) return { ok: false, error: "invalid_response" };
     if (mutation) {
       const allowed = { POST: /^\/projects\/\d+\/merge_request\/\d+\/review\/batch_invite$/, DELETE: /^\/projects\/\d+\/merge_request\/\d+\/review\/dismissals$/, PUT: /^\/projects\/\d+\/merge_request\/\d+\/reviewer\/summary$/ };
-      if (!allowed[mutation.method].test(path)) return { ok: false, error: "invalid_response" };
-      if (mutation.method === "PUT" && !z.object({ reviewer_event: reviewEvent, summary: z.string().max(10000) }).strict().safeParse(mutation.body).success) return { ok: false, error: "invalid_response" };
+      const milestoneRoute = mutation.method === "POST" ? /^\/projects\/\d+\/milestones$/.test(path) : /^\/projects\/\d+\/milestones\/\d+$/.test(path);
+      const milestoneBody = z.object({ title: z.string().trim().min(1).max(255), description: z.string().max(100000).optional(), due_date: z.string().max(10).optional(), state_event: z.enum(["active", "close"]).optional() }).strict();
+      const linkRoute = mutation.method === "PUT" && /^\/projects\/\d+\/(?:issues|merge_request)\/\d+$/.test(path);
+      if (milestoneRoute) {
+        if (mutation.method === "DELETE" ? mutation.body !== undefined : !milestoneBody.safeParse(mutation.body).success) return { ok: false, error: "invalid_response" };
+      } else if (linkRoute) {
+        if (!z.object({ milestone_id: z.number().int().positive().nullable() }).strict().safeParse(mutation.body).success) return { ok: false, error: "invalid_response" };
+      } else {
+        if (!allowed[mutation.method].test(path)) return { ok: false, error: "invalid_response" };
+        if (mutation.method === "PUT" && !z.object({ reviewer_event: reviewEvent, summary: z.string().max(10000) }).strict().safeParse(mutation.body).success) return { ok: false, error: "invalid_response" };
+      }
     }
     const url = new URL(`${siteUrl}/api/v3${path}`);
     url.search = new URLSearchParams(query).toString();
@@ -151,7 +160,7 @@ export function createGongfengClient() {
         get: (path: string, query?: Record<string, string>) => request(siteUrl, token, path, query),
         post: (path: string, body: Record<string, unknown>) => request(siteUrl, token, path, {}, { method: "POST", body }),
         put: (path: string, body: Record<string, unknown>) => request(siteUrl, token, path, {}, { method: "PUT", body }),
-        delete: (path: string, query: Record<string, string>) => request(siteUrl, token, path, query, { method: "DELETE" }),
+        delete: (path: string, query: Record<string, string> = {}) => request(siteUrl, token, path, query, { method: "DELETE" }),
       };
     },
     save: (token?: string, requestedSite?: string) => serialize(async () => {

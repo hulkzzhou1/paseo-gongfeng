@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { AccessibilityInfo, Animated, Easing, Pressable, View } from "react-native";
 import type { Theme } from "./workbench-ui.tsx";
 
-export function Drawer({ width, theme, onDismiss, children }: { width: number; theme: Theme; onDismiss(): void; children(close: () => void, ready: boolean): ReactNode }) {
+export function Drawer({ width, theme, onDismiss, children, label = "MR 详情" }: { label?: string; width: number; theme: Theme; onDismiss(): void; children(close: () => void, ready: boolean): ReactNode }) {
   const progress = useRef(new Animated.Value(0)).current;
   const [ready, setReady] = useState(false);
   const reduceMotion = useRef(true), closing = useRef(false);
@@ -28,9 +28,9 @@ export function Drawer({ width, theme, onDismiss, children }: { width: number; t
   }, [onDismiss, progress]);
   return <View style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, overflow: "hidden" }}>
     <Animated.View style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, opacity: progress.interpolate({ inputRange: [0, 1], outputRange: [0, 0.7] }) }}>
-      <Pressable accessibilityRole="button" accessibilityLabel="关闭 MR 详情遮罩" onPress={close} style={{ flex: 1, backgroundColor: theme.colors.surface0 }} />
+      <Pressable accessibilityRole="button" accessibilityLabel={`关闭 ${label}遮罩`} onPress={close} style={{ flex: 1, backgroundColor: theme.colors.surface0 }} />
     </Animated.View>
-    <Animated.View accessibilityLabel="MR 详情抽屉" accessibilityViewIsModal style={{ position: "absolute", top: 0, right: 0, bottom: 0, width, borderLeftWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface0, shadowColor: theme.colors.foreground, shadowOpacity: 0.12, shadowRadius: 18, shadowOffset: { width: -4, height: 0 }, elevation: 8,
+    <Animated.View accessibilityLabel={`${label}抽屉`} accessibilityViewIsModal style={{ position: "absolute", top: 0, right: 0, bottom: 0, width, borderLeftWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface0, shadowColor: theme.colors.foreground, shadowOpacity: 0.12, shadowRadius: 18, shadowOffset: { width: -4, height: 0 }, elevation: 8,
       transform: [{ translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [width, 0] }) }] }}>
       {children(close, ready)}
     </Animated.View>

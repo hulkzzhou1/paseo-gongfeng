@@ -1,3 +1,4 @@
+import { milestoneSummary } from "./milestones.ts";
 import { siteReference } from "./site.ts";
 import { defineRpc } from "@getpaseo/plugin";
 import { z } from "zod";
@@ -12,6 +13,7 @@ export const mrDetailSchema = z.object({
   sourceProjectId: z.number().int().positive(), targetProjectId: z.number().int().positive(),
   sourceBranch: z.string(), targetBranch: z.string(),
   sourceSha: shaSchema.nullable(), targetSha: shaSchema.nullable(), baseSha: shaSchema.nullable(),
+  milestone: milestoneSummary.nullable().optional(),
   updatedAt: z.string().nullable(), url: z.string().url().nullable(),
 });
 export const fileDiffSchema = z.object({

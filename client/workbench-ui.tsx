@@ -64,3 +64,15 @@ export function StateBadge({ theme, state }: { theme: Theme; state: string }) {
     <Text style={{ color, fontSize: 12 }}>{labels[state] ?? state}</Text>
   </View>;
 }
+
+export function WorkbenchNavigation({ theme, compact, selected, onMergeRequests, onMilestones, onRepositories, siteUrl }: {
+  theme: Theme; compact: boolean; selected: "mrs" | "milestones"; onMergeRequests(): void; onMilestones(): void; onRepositories(): void; siteUrl?: string;
+}) {
+  const styles = workbenchStyles(theme);
+  return <View testID="gongfeng-board-navigation" style={{ ...styles.toolbar, paddingHorizontal: compact ? 12 : 16, paddingVertical: compact ? 6 : 7, borderBottomWidth: 1, borderColor: theme.colors.border }}>
+    <Action theme={theme} dense={!compact} pill label="合并请求" icon="GitPullRequest" selected={selected === "mrs"} onPress={onMergeRequests} />
+    <Action theme={theme} dense={!compact} pill label="里程碑" icon="Flag" selected={selected === "milestones"} onPress={onMilestones} />
+    <Action theme={theme} dense={!compact} pill label="仓库管理" icon="GitBranch" selected={false} onPress={onRepositories} />
+    {!compact ? <Text numberOfLines={1} style={[styles.muted, { flex: 1, textAlign: "right" }]}>{siteUrl ?? "请先配置工蜂站点"}</Text> : null}
+  </View>;
+}

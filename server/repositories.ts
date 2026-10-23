@@ -89,7 +89,7 @@ export function registerRepositories(server: PluginServerContext, api: GongfengC
     if (next !== null && (!Number.isSafeInteger(next) || next <= page || next > 10000)) return { ok: false as const, error: "invalid_response" as const };
     return { ok: true as const, items: parsed.data.map(repo => ({ id: repo.id, path: repo.path_with_namespace, name: repo.name })), nextPage: next };
   });
-  server.handle(listManagedRepositories, input => serialize(async () => {
+  const managed = (input: RpcInput<typeof listManagedRepositories>) => serialize(async () => {
     try {
       const id = await daemonId(), siteUrl = await api.siteUrl();
       if (input.siteUrl && input.siteUrl !== siteUrl) return { ok: false as const, error: "account_changed" as const };
@@ -97,7 +97,8 @@ export function registerRepositories(server: PluginServerContext, api: GongfengC
       const records = [...await readManaged(), ...await read()];
       return { ok: true as const, items: [...new Map(records.filter(r => r.daemonId === id && r.instance === storedInstance(siteUrl)).map(r => [r.repository.id, r.repository])).values()] };
     } catch { return { ok: false as const, error: "storage_error" as const }; }
-  }));
+  });
+  server.handle(listManagedRepositories, managed);
   server.handle(addManagedRepository, input => api.exclusive(() => serialize(async () => {
     const session = await api.session(input.siteUrl); if (!session.ok) return session;
     const remote = await repository(input.repositoryId, session); if (!remote.ok) return remote;
@@ -157,5 +158,5 @@ export function registerRepositories(server: PluginServerContext, api: GongfengC
       await write(bindings.filter(b => b.daemonId !== id || b.instance !== storedInstance(session.siteUrl) || b.projectId !== input.projectId)); return { ok: true as const };
     } catch { return { ok: false as const, error: "storage_error" as const }; }
   })));
-  return { bind, list };
+  return { bind, list, managed };
 }
