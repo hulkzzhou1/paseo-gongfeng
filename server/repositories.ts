@@ -4,8 +4,8 @@ import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -41,7 +41,7 @@ async function matches(rootPath: string, path: string, siteUrl: string) {
   } catch { return false; }
 }
 
-export function registerRepositories(server: PluginServerContext, api: GongfengClient) {
+export function registerRepositories(server: Pick<PluginServerContext, "handle">, api: GongfengClient) {
   const home = resolve(process.env.PASEO_HOME || join(homedir(), ".paseo"));
   const directory = join(home, "plugin-data", "gongfeng-workbench");
   const filename = join(directory, "repositories.json");
@@ -122,12 +122,12 @@ export function registerRepositories(server: PluginServerContext, api: GongfengC
       return { ok: true as const, binding };
     } catch { return { ok: false as const, error: "storage_error" as const }; }
   });
-  const list = async (input: RpcInput<typeof listRepositoryBindings>, { paseo }: PluginHandlerContext): Promise<RpcOutput<typeof listRepositoryBindings>> => {
+  const list = async (input: RpcInput<typeof listRepositoryBindings> & { projectId?: string }, { paseo }: PluginHandlerContext): Promise<RpcOutput<typeof listRepositoryBindings>> => {
     const local = await projects(paseo); if (!local.ok) return local;
     try {
       const id = await daemonId(), siteUrl = await api.siteUrl();
       if (input.siteUrl && input.siteUrl !== siteUrl) return { ok: false as const, error: "account_changed" as const };
-      const records = (await read()).filter(b => b.daemonId === id && b.instance === storedInstance(siteUrl) && (!input.repositoryId || b.repository.id === input.repositoryId));
+      const records = (await read()).filter(b => b.daemonId === id && b.instance === storedInstance(siteUrl) && (!input.repositoryId || b.repository.id === input.repositoryId) && (!input.projectId || b.projectId === input.projectId));
       const session = await api.session(siteUrl);
       const repos = new Map<number, Awaited<ReturnType<typeof repository>>>();
       for (const repoId of new Set([...records.map(b => b.repository.id), ...(input.repositoryId ? [input.repositoryId] : [])])) {
@@ -158,5 +158,39 @@ export function registerRepositories(server: PluginServerContext, api: GongfengC
       await write(bindings.filter(b => b.daemonId !== id || b.instance !== storedInstance(session.siteUrl) || b.projectId !== input.projectId)); return { ok: true as const };
     } catch { return { ok: false as const, error: "storage_error" as const }; }
   })));
-  return { bind, list, managed };
+  async function canInjectMcp(cwd: string, context: PluginHandlerContext): Promise<boolean> {
+    try {
+      if (!isAbsolute(cwd)) return false;
+      const id = await daemonId(), siteUrl = await api.siteUrl();
+      const bindings = (await read()).filter(b => b.daemonId === id && b.instance === storedInstance(siteUrl));
+      if (!bindings.length) return false;
+      const current = await realpath(cwd), local = await projects(context.paseo);
+      if (!local.ok) return false;
+      const roots = local.items.map(p => ({ projectId: p.projectId, path: p.projectRootPath }));
+      let cursor: string | undefined;
+      const seen = new Set<string>();
+      do {
+        const page = await context.paseo.workspaces.list({ includeBackground: true, page: { limit: 200, ...(cursor ? { cursor } : {}) } });
+        for (const workspace of page.entries) if (workspace.workspaceDirectory) roots.push({ projectId: workspace.projectId, path: workspace.workspaceDirectory });
+        if (!page.pageInfo.hasMore) break;
+        const next = page.pageInfo.nextCursor;
+        if (!next || seen.has(next)) return false;
+        seen.add(next); cursor = next;
+      } while (true);
+      // An unbound nested project must not inherit its parent project's association.
+      const candidates = (await Promise.all(roots.map(async root => {
+        try {
+          const path = await realpath(root.path), child = relative(path, current);
+          return child === "" || child !== ".." && !child.startsWith(`..${sep}`) && !isAbsolute(child) ? { ...root, path } : null;
+        } catch { return null; }
+      }))).filter(p => p !== null).sort((a, b) => b.path.length - a.path.length);
+      const ids = new Set(candidates.filter(p => p.path.length === candidates[0]?.path.length).map(p => p.projectId));
+      if (ids.size !== 1) return false;
+      const [projectId] = ids;
+      if (!bindings.some(b => b.projectId === projectId)) return false;
+      const result = await list({ siteUrl, projectId }, context);
+      return result.ok && result.bindings.some(b => b.projectId === projectId && b.status === "valid");
+    } catch { return false; }
+  }
+  return { bind, list, managed, canInjectMcp };
 }

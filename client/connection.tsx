@@ -1,12 +1,13 @@
 import { useRef, useState } from "react";
 import { Text, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRpc, type PluginSurfaceProps } from "@getpaseo/plugin/client";
+import { useRpc, useSettings, type PluginSurfaceProps } from "@getpaseo/plugin/client";
 import {
-  SettingsCard, SettingsInput,
+  SettingsCard, SettingsInput, SettingsSwitch,
   type SettingsInputHandle,
 } from "@getpaseo/plugin/client/ui";
 import { connectionStatus, saveConnection, tokenSchema } from "../shared/connection.ts";
+import { mcpSettings } from "../shared/mcp.ts";
 import { siteUrlSchema } from "../shared/site.ts";
 
 import { Icon } from "@getpaseo/plugin/client/react-native";
@@ -23,6 +24,7 @@ const messages = {
 const connectionKey = ["connection"] as const;
 
 export function ConnectionSettings({ theme, layout }: PluginSurfaceProps) {
+  const mcp = useSettings(mcpSettings);
   const statusRpc = useRpc(connectionStatus);
   const saveRpc = useRpc(saveConnection);
   const client = useQueryClient();
@@ -99,6 +101,16 @@ export function ConnectionSettings({ theme, layout }: PluginSurfaceProps) {
           save.mutate();
         }} /></View>
     </View>
+    <SettingsCard>
+      {mcp.status === "ready" ? <SettingsSwitch label="向 Agent 提供工蜂 MCP" value={mcp.values.enabled}
+        disabled={mcp.saving}
+        onValueChange={enabled => { if (mcp.status === "ready") void mcp.save({ enabled }, mcp.revision); }}
+        hint="默认关闭。开启后仅向已有效关联工蜂仓库的项目中新建 Agent 注入工蜂 MCP，需 provider 支持 HTTP MCP。关闭会停止服务；不会移除或更新已有 Agent 的配置，重载或切换凭据后需新建 Agent。写操作仍需授权。"
+        error={mcp.saveError} /> : <View style={{ padding: 12, gap: 8 }}>
+          <Text accessibilityLiveRegion="polite" style={styles.muted}>{mcp.status === "loading" ? "正在读取 MCP 设置…" : "无法读取 MCP 设置，原配置保持不变。"}</Text>
+          {mcp.status !== "loading" ? <Action theme={theme} label="重新读取 MCP 设置" onPress={() => { void mcp.reload(); }} /> : null}
+        </View>}
+    </SettingsCard>
     {notice ? <View style={[styles.panel, { padding: 12 }]}><Text accessibilityLiveRegion="polite" style={styles.text}>{notice}</Text></View> : null}
     <View style={{ borderTopWidth: 1, borderColor: theme.colors.border, paddingTop: 12, gap: 6 }}>
       <Text style={[styles.text, { fontWeight: "600" }]}>账号与访问范围</Text>

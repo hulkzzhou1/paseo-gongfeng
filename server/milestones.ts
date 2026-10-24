@@ -13,7 +13,7 @@ export function normalizeMilestone(data: z.infer<typeof rawMilestone>, repositor
     revision: createHash("sha256").update(JSON.stringify([data.id, data.project_id, data.title, description, data.state, data.due_date ?? null, data.updated_at ?? null])).digest("hex") };
 }
 const invalid = { ok: false as const, error: "invalid_response" as const };
-export function registerMilestones(server: PluginServerContext, api: GongfengClient, repositories: ReturnType<typeof registerRepositories>) {
+export function registerMilestones(server: Pick<PluginServerContext, "handle">, api: GongfengClient, repositories: ReturnType<typeof registerRepositories>) {
   async function access(input: { siteUrl?: string; accountId: number; projectId?: number }) {
     const session = await api.session(input.siteUrl); if (!session.ok) return session;
     if (session.account.id !== input.accountId) return { ok: false as const, error: "account_changed" as const };

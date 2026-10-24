@@ -2,7 +2,7 @@ import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { connectionStatus, saveConnection } from "../shared/connection.ts";
 import type { GongfengClient } from "./gongfeng.ts";
 
-export function registerConnection(server: PluginServerContext, api: GongfengClient) {
+export function registerConnection(server: Pick<PluginServerContext, "handle">, api: GongfengClient) {
   server.handle(connectionStatus, async () => {
     const result = await api.session();
     if (result.ok) return { status: "connected" as const, account: result.account, siteUrl: result.siteUrl };

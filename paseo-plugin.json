@@ -13,5 +13,14 @@
   },
   "media": [
     "assets/gongfeng-board.png"
+  ],
+  "build": [
+    [
+      "npm",
+      "ci",
+      "--omit=dev",
+      "--ignore-scripts",
+      "--registry=https://registry.npmjs.org"
+    ]
   ]
 }

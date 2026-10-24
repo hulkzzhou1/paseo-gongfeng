@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 — 2026-10-25
+
+- Add an opt-in local HTTP MCP service exposing 27 explicit Gongfeng tools. UI RPC and MCP share the same business handlers, credentials and write queues.
+- Use Paseo's existing agent.create hook to inject MCP only into new Agents in projects with a valid Gongfeng repository association on the active host/site. Preserve unrelated and same-name MCP settings; include associated worktrees and subdirectories, excluding ambiguous or unbound nested projects.
+- Keep MCP off by default. Disabling, unloading or changing credentials stops old endpoints without rewriting existing Agent configuration. New Agents receive new definitions; provider HTTP MCP support is required.
+- Add confirmed MR close/reopen in the overview and MCP, with identity/revision checks, strict mutation fields, readback and no automatic write retries. Refresh milestone-linked MR lists after changes.
+- Keep the published Paseo SDK 0.12.0 baseline. Git installation now installs locked runtime MCP dependencies with npm ci --omit=dev --ignore-scripts.
+
+New-hook real provider verification, native mobile and real MR lifecycle writes remain unverified. MCP call results may be sent to the calling Agent's model provider; the Gongfeng token stays server-side.
+
 ## 0.2.0 — 2026-10-23
 
 - Add a Milestones tab with aggregated added-repository browsing, repository/state filters, loaded-content search and floating details.

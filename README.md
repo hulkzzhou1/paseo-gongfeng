@@ -21,12 +21,12 @@
 
 ## 安装与配置
 
-验证基线为 Paseo 0.12.0，要求本机 Git、Paseo CLI，以及 daemon 能访问所填工蜂站点。插件属于可信代码，在 daemon 和客户端运行，安装前请审阅源码。
+本版使用Paseo现有创建Hook和官方0.12.0 SDK，要求Paseo 0.12.0+；MCP还要求所选provider支持HTTP连接。要求本机 Git、Paseo CLI，以及 daemon 能访问所填工蜂站点。插件属于可信代码，在 daemon 和客户端运行，安装前请审阅源码。
 
 在已启用插件的 daemon 中安装：
 
 ```sh
-paseo plugin install github:hulkzzhou1/paseo-gongfeng --ref main
+paseo plugin install github:hulkzzhou1/paseo-gongfeng --ref v0.3.0
 ```
 
 1. 打开工作台右上角“工蜂设置”，填写站点根地址（例如 `https://code.example.com`），不含 `/api/v3` 或仓库路径。
@@ -60,3 +60,15 @@ paseo plugin install .
 `npm run check` 检查本地任务状态、TypeScript 与自动化测试；测试使用临时数据和模拟 HTTP，不需要真实 Token 或模型。更改后使用 `paseo plugin reload gongfeng-workbench`，不需要重启 daemon。
 
 采用 [MIT 许可证](LICENSE)。本项目独立实现工蜂接口层，参考现有 Paseo 插件的交互组织，未复制 GitHub 插件的代码或实质部分。
+
+MR 概览支持确认后关闭开放 MR、重新打开已关闭 MR；重开可能按最新 OWNERS 重置评审规则。已合入／锁定／未知状态不提供此操作。权限由工蜂校验；状态更新前复核版本、更新后回读，结果未知时不自动重发。
+
+## 可选 MCP 接入
+
+工蜂设置的“向 Agent 提供工蜂 MCP”开关默认关闭。开启且已连接工蜂时，仅向当前host／站点已有效关联工蜂仓库的Paseo项目，通过 `agent.create` Hook给新建Agent注入本地HTTP MCP；保留原有Agent配置和其他MCP，同名 `gongfeng-workbench` 连接不覆盖。工具覆盖仓库／本地项目关联、MR读取与人工评审、关闭／重开、里程碑管理。写入仍需用户授权与确认。
+
+归属通过宿主项目／工作区SDK核对，支持关联项目的worktree和子目录；未关联、关联失效、嵌套的未关联项目或归属不明确时不注入。关联解除只影响之后的自动注入，不改写已有Agent配置。
+
+关闭或卸载会停止插件服务，但不删除或更新已创建Agent中的连接；插件重载／切换凭据后，旧连接可能失效，需新建Agent采用新定义。不会通过 `agent.session_open` 注入MCP，也不主动重启已有Agent。工蜂Token不进入Agent配置或环境；调用结果可能由Agent的模型供应商处理。
+
+本版使用Paseo现有创建Hook，不需要Hosted MCP统一管理接口。新Hook路径已完成受控RPC／标准MCP测试和隔离fake provider验证，尚未重新验证真实provider；原生手机及真实MR状态写入仍待验收。详见 [验证范围](docs/validation.md)。

@@ -14,7 +14,7 @@ const execute = promisify(execFile);
 const recordSchema = cloneOperationSchema.extend({ siteUrl: siteUrlSchema.default(legacySite), remote: z.string(), device: z.number().optional(), inode: z.number().optional() });
 type Operation = z.infer<typeof recordSchema>;
 
-export function registerClone(server: PluginServerContext, api: GongfengClient, repositories: ReturnType<typeof registerRepositories>) {
+export function registerClone(server: Pick<PluginServerContext, "handle">, api: GongfengClient, repositories: ReturnType<typeof registerRepositories>) {
   const home = resolve(process.env.PASEO_HOME || join(homedir(), ".paseo"));
   const directory = join(home, "plugin-data", "gongfeng-workbench"); const file = join(directory, "clones.json");
   const lifetime = new AbortController();

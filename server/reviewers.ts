@@ -6,7 +6,7 @@ import type { RpcOutput } from "@getpaseo/plugin";
 import { reviewUser, saveReviewers, searchReviewers, submitReview } from "../shared/reviewers.ts";
 import { readDetail, readReview } from "./detail.ts";
 
-export function registerReviewers(server: PluginServerContext, api: GongfengClient) {
+export function registerReviewers(server: Pick<PluginServerContext, "handle">, api: GongfengClient) {
   server.handle(searchReviewers, async input => {
     const session = await api.session(input.siteUrl); if (!session.ok) return session;
     if (session.account.id !== input.accountId) return { ok: false as const, error: "account_changed" as const };

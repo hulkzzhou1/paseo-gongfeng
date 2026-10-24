@@ -5,6 +5,7 @@ import { useRpc, type PluginScreenProps } from "@getpaseo/plugin/client";
 import { ExternalLink, SettingsCard, SettingsRow } from "@getpaseo/plugin/client/ui";
 import type { MilestoneReference } from "../shared/milestones.ts";
 import { mrChanges, mrDetail, mrNotes, mrRef, mrReview, type MrRef } from "../shared/detail.ts";
+import { MRStateActions } from "./mr-state.tsx";
 import { MRAdditions } from "./additions.tsx";
 import { errorMessages } from "./errors.ts";
 import { Modal } from "@getpaseo/plugin/client/react-native";
@@ -70,6 +71,7 @@ function DetailContent({ theme, layout, reference, onBack, drawer, focusReady = 
     </View>
     <ScrollView ref={scroll} style={{ flex: 1 }} contentContainerStyle={{ padding: layout.compact ? 12 : 20, gap: 16 }}>
     <View style={{ display: tab === "overview" ? "flex" : "none", gap: 16 }}>
+    {info ? <MRStateActions theme={theme} reference={reference} detail={info} /> : null}
     <ReviewStatus theme={theme} reference={reference} review={reviewInfo} loading={review.isFetching} error={reviewError} url={info?.url} sourceSha={info?.sourceSha} mrState={info?.state} />
     <WorkbenchCard theme={theme} title="描述" icon="FileText" testID="gongfeng-description-card">
       <View style={{ padding: 12 }}>

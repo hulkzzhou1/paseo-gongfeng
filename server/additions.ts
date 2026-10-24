@@ -15,7 +15,7 @@ function externalUrl(value: string | null | undefined): string | null {
   try { const url = new URL(value || ""); return ["http:", "https:"].includes(url.protocol) && !url.username && !url.password ? url.href : null; }
   catch { return null; }
 }
-export function registerAdditions(server: PluginServerContext, api: GongfengClient) {
+export function registerAdditions(server: Pick<PluginServerContext, "handle">, api: GongfengClient) {
   server.handle(mrCi, async ref => {
     const session = await api.session(ref.siteUrl); if (!session.ok) return session;
     if (ref.accountId !== undefined && ref.accountId !== session.account.id) return { ok: false as const, error: "account_changed" as const };

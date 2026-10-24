@@ -1,6 +1,6 @@
 {
   "name": "paseo-gongfeng",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "Paseo workbench for Gongfeng repositories and merge request reviews",
@@ -38,5 +38,8 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/hulkzzhou1/paseo-gongfeng.git"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2"
   }
 }

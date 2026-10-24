@@ -12,7 +12,7 @@ const groupsSchema = z.array(z.object({
   merge_requests: z.array(mergeRequestSchema),
 }));
 
-export function registerBoard(server: PluginServerContext, api: GongfengClient, repositories: ReturnType<typeof registerRepositories>) {
+export function registerBoard(server: Pick<PluginServerContext, "handle">, api: GongfengClient, repositories: ReturnType<typeof registerRepositories>) {
   server.handle(boardPage, async ({ relation, state, search, page, accountId, repositoryId, siteUrl }, context) => {
     const session = await api.session(siteUrl);
     if (!session.ok) return session;

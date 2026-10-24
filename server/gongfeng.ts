@@ -1,6 +1,7 @@
 import { constants } from "node:fs";
 import { chmod, lstat, mkdir, open, rename, rm } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { createHash, randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { clearTimeout, setTimeout } from "node:timers";
@@ -21,9 +22,23 @@ export function createGongfengClient() {
   const tokenFile = join(directory, "private-token");
   const lifetime = new AbortController();
   let pending: Promise<unknown> = Promise.resolve();
+  const connectionScope = new AsyncLocalStorage<{ key: string; active: () => boolean }>();
+  const listeners = new Set<() => Promise<void>>();
+  async function configurationKey() {
+    const saved = await readCredentials();
+    if (!saved) return null;
+    return createHash("sha256").update(JSON.stringify([saved.activeSite, saved.sites.find(site => site.siteUrl === saved.activeSite)!.token])).digest("hex");
+  }
+  async function currentScope() {
+    const expected = connectionScope.getStore();
+    return !expected || expected.active() && expected.key === await configurationKey();
+  }
 
   function serialize<T>(operation: () => Promise<T>): Promise<T> {
-    const result = pending.then(operation);
+    const result = pending.then(async () => {
+      if (!await currentScope()) throw new Error("Gongfeng connection changed");
+      return operation();
+    });
     pending = result.catch(() => {});
     return result;
   }
@@ -78,12 +93,16 @@ export function createGongfengClient() {
   async function request(siteUrl: string, token: string, path: string, query: Record<string, string> = {}, mutation?: { method: "POST" | "DELETE" | "PUT"; body?: Record<string, unknown> }): Promise<ApiResult> {
     if (!/^\/(user$|projects(?:\/|$)|dashboard\/merge_requests$)/.test(path) || path.includes("..") || path.includes("?") || path.includes("#")) return { ok: false, error: "invalid_response" };
     if (mutation) {
+      const stateUpdate = mutation.method === "PUT" && Object.keys(query).length > 0;
+      if (stateUpdate && !/^\/projects\/\d+\/merge_request\/\d+$/.test(path)) return { ok: false, error: "invalid_response" };
       const allowed = { POST: /^\/projects\/\d+\/merge_request\/\d+\/review\/batch_invite$/, DELETE: /^\/projects\/\d+\/merge_request\/\d+\/review\/dismissals$/, PUT: /^\/projects\/\d+\/merge_request\/\d+\/reviewer\/summary$/ };
       const milestoneRoute = mutation.method === "POST" ? /^\/projects\/\d+\/milestones$/.test(path) : /^\/projects\/\d+\/milestones\/\d+$/.test(path);
       const milestoneBody = z.object({ title: z.string().trim().min(1).max(255), description: z.string().max(100000).optional(), due_date: z.string().max(10).optional(), state_event: z.enum(["active", "close"]).optional() }).strict();
       const linkRoute = mutation.method === "PUT" && /^\/projects\/\d+\/(?:issues|merge_request)\/\d+$/.test(path);
       if (milestoneRoute) {
         if (mutation.method === "DELETE" ? mutation.body !== undefined : !milestoneBody.safeParse(mutation.body).success) return { ok: false, error: "invalid_response" };
+      } else if (linkRoute && stateUpdate) {
+        if (!z.object({ state_event: z.enum(["close", "reopen"]) }).strict().safeParse(query).success || !z.object({}).strict().safeParse(mutation.body).success) return { ok: false, error: "invalid_response" };
       } else if (linkRoute) {
         if (!z.object({ milestone_id: z.number().int().positive().nullable() }).strict().safeParse(mutation.body).success) return { ok: false, error: "invalid_response" };
       } else {
@@ -146,8 +165,13 @@ export function createGongfengClient() {
   return {
     // Local writes and connection switches share a queue so an operation stays on one site.
     exclusive: serialize,
+    configurationKey,
+    withConfiguration<T>(key: string, operation: () => Promise<T>, active = () => true) { return connectionScope.run({ key, active }, operation); },
+    onConfigurationChange(listener: () => Promise<void>) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     async siteUrl() { return (await readCredentials())?.activeSite ?? legacySite; },
     async session(expectedSite?: string) {
+      try { if (!await currentScope()) return { ok: false as const, error: "account_changed" as const }; }
+      catch { return { ok: false as const, error: "storage_error" as const }; }
       let credentials: Credentials | null;
       try { credentials = await readCredentials(); } catch { return { ok: false as const, error: "storage_error" as const }; }
       if (!credentials) return { ok: false as const, error: "unconfigured" as const };
@@ -159,7 +183,7 @@ export function createGongfengClient() {
       return { ...result, siteUrl,
         get: (path: string, query?: Record<string, string>) => request(siteUrl, token, path, query),
         post: (path: string, body: Record<string, unknown>) => request(siteUrl, token, path, {}, { method: "POST", body }),
-        put: (path: string, body: Record<string, unknown>) => request(siteUrl, token, path, {}, { method: "PUT", body }),
+        put: (path: string, body: Record<string, unknown>, query: Record<string, string> = {}) => request(siteUrl, token, path, query, { method: "PUT", body }),
         delete: (path: string, query: Record<string, string> = {}) => request(siteUrl, token, path, query, { method: "DELETE" }),
       };
     },
@@ -173,10 +197,12 @@ export function createGongfengClient() {
       if (!result.ok) return result;
       try {
         await storeCredentials({ activeSite: siteUrl, sites: [...(previous?.sites ?? []).filter(site => site.siteUrl !== siteUrl), { siteUrl, token: selectedToken }] });
+        // Registration failures must not turn an already persisted connection into a failed save.
+        await Promise.allSettled([...listeners].map(listener => listener()));
         return { ...result, siteUrl };
       } catch { return { ok: false as const, error: "storage_error" as const }; }
     }),
-    dispose: () => lifetime.abort(),
+    dispose: () => { listeners.clear(); lifetime.abort(); },
   };
 }
 
