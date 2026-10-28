@@ -14,7 +14,6 @@ let state: string, clock: number, account: number, targetProject: number;
 let writes: { path: string; query: Record<string, string>; body: unknown }[];
 let failure: "none" | "forbidden" | "network" | "unchanged" | "read";
 let handlers: Map<string, (input: any) => any>;
-const originalFetch = globalThis.fetch;
 async function rpc(contract: PluginRpcContract, input: unknown) { return contract.output.parse(await handlers.get(contract.name)!(contract.input.parse(input))); }
 async function detail() { const result = await rpc(mrDetail, reference) as any; assert(result.ok); return result.detail; }
 beforeEach(async () => {
@@ -22,7 +21,6 @@ beforeEach(async () => {
   state = "opened"; clock = 1; account = 7; targetProject = 10; writes = []; failure = "none";
   mock.method(globalThis, "fetch", async (input: any, init?: RequestInit) => {
     const url = new URL(String(input));
-    if (url.hostname === "127.0.0.1") return originalFetch(input, init);
     assert.equal(url.origin, reference.siteUrl); assert.equal(init?.redirect, "error");
     if (url.pathname === "/api/v3/user") return Response.json({ id: account, username: "tester", name: "Tester" });
     if (url.pathname === "/api/v3/projects/10") return Response.json({ id: 10, path_with_namespace: "Demo/Repo" });
@@ -100,24 +98,7 @@ test("状态更新白名单拒绝合入、其他字段、Issue和额外query", a
   assert.equal(writes.length, 0);
 });
 
-test("标准MCP发现并确认后关闭MR，与RPC读取相同结果", async () => {
-  const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
-  const { StreamableHTTPClientTransport } = await import("@modelcontextprotocol/sdk/client/streamableHttp.js");
-  const { startMcpEndpoint } = await import("./mcp-http.ts");
-  const client = new Client({ name: "mr-state-test", version: "1" });
-  const endpoint = await startMcpEndpoint(service, { key: await service.api.configurationKey(), siteUrl: reference.siteUrl });
-  try {
-    await client.connect(new StreamableHTTPClientTransport(new URL(endpoint.config.url), { requestInit: { headers: endpoint.config.headers } }));
-    const tool = (await client.listTools()).tools.find(t => t.name === "change_merge_request_state"); assert(tool);
-    assert.equal(tool.annotations?.readOnlyHint, false); assert.equal(tool.annotations?.destructiveHint, true);
-    const before = await detail(); const input = { ...reference, revision: before.stateRevision, event: "close" };
-    await assert.rejects(client.callTool({ name: tool.name, arguments: { input } })); assert.equal(writes.length, 0);
-    const called = await client.callTool({ name: tool.name, arguments: { input, confirm: true } });
-    assert.deepEqual(called.structuredContent, { result: { ok: true, current: await detail() } }); assert.equal(writes.length, 1);
-    const stale = await client.callTool({ name: tool.name, arguments: { input, confirm: true } });
-    assert.equal(stale.isError, true); assert.equal(writes.length, 1);
-  } finally { await client.close(); await endpoint.close(); }
-});
+
 
 
 test("写入后无法回读时返回结果未知，不能将请求成功当作状态确认", async () => {

@@ -1,12 +1,12 @@
 // Keep host DOM compatibility here; native clients keep their host-owned modal behavior.
-export function widenDescriptionDialog(node: unknown): () => void {
+export function widenDescriptionDialog(node: unknown, maximumWidth = 1040): () => void {
   const root = node as { closest?(selector: string): { style: { width: string; maxWidth: string } } | null } | null;
   const dialog = root?.closest?.('[role="dialog"]');
   if (!dialog) return () => {};
   // shortcut: Paseo 0.12 has no modal width prop; replace when the installed SDK exposes one.
   const { width, maxWidth } = dialog.style;
   dialog.style.width = "calc(100vw - 48px)";
-  dialog.style.maxWidth = "1040px";
+  dialog.style.maxWidth = `${maximumWidth}px`;
   return () => { dialog.style.width = width; dialog.style.maxWidth = maxWidth; };
 }
 

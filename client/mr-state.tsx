@@ -1,3 +1,4 @@
+import { useDraft } from "./draft-guard.tsx";
 import { useState } from "react";
 import { Text, View } from "react-native";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -36,6 +37,7 @@ export function MRStateActions({ theme, reference, detail }: { theme: Theme; ref
     onError() { setBlocked(true); setMessage("操作结果未知，请关闭弹窗并刷新、在工蜂核对实际状态；不会自动重发。"); refresh(); },
   });
   const busy = mutation.isPending;
+  useDraft(false,mutation.isPending);
   if (!reference.accountId || !event && !target) return null;
   return <>
     <WorkbenchCard theme={theme} title="MR 状态" icon="GitBranch" testID="gongfeng-mr-state-card"><View style={[styles.toolbar, { padding: 12 }]}>

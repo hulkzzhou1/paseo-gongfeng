@@ -1,8 +1,33 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { richBlocks, richInline } from "./rich-text.ts";
+import { richBlocks, richInline, richExcerpt } from "./rich-text.ts";
 
 const base = "https://code.example.com/team/repo/merge_requests/1";
+
+test("描述摘要显示正文而非 Markdown 标记、链接地址和表格分隔行，仍限制120字符", () => {
+  assert.equal(richExcerpt('## 发布计划\n\n- [x] **完成** `API` [关联项](https://example.com/private/path)\n\n| 项目 | 状态 |\n| --- | --- |\n| SDK | 待办 |'), "发布计划 完成 API 关联项 项目 状态 SDK 待办");
+  assert.equal(richExcerpt("**" + "😀".repeat(121) + "**"), "😀".repeat(120) + "…");
+});
+
+test("里程碑表格和任务清单保留结构，单元格继续支持安全的链接与行内代码", () => {
+  const blocks = richBlocks('## 计划\n\n| 项目 | 状态 | 关联 |\n| :--- | :---: | ---: |\n| API | **进行中** | [`!12`](https://example.com/mr/12) |\n\n- [x] 接口确认\n- [ ] 联调验证');
+  assert.deepEqual(blocks.map(b => b.kind), ["heading", "table", "list", "list"]);
+  const table = blocks[1]; assert(table.kind === "table");
+  assert.deepEqual(table.headers, ["项目", "状态", "关联"]);
+  assert.deepEqual(table.alignments, ["left", "center", "right"]);
+  assert.deepEqual(table.rows, [["API", "**进行中**", "[`!12`](https://example.com/mr/12)"]]);
+  assert.equal(richInline(table.rows[0][2], base)[0].kind, "link");
+  assert.deepEqual(blocks.slice(2).map(b => b.kind === "list" ? [b.text, b.checked] : null), [["接口确认", true], ["联调验证", false]]);
+});
+
+test("表格接受可选边界、转义竖线和缺列；普通竖线正文和代码不误判", () => {
+  const blocks = richBlocks('A | B\n--- | ---\n`a\\|b` | **ok**\nshort\n\nA | B\n不是分隔行\n\n```md\n| A | B |\n| --- | --- |\n```');
+  const table = blocks[0]; assert(table.kind === "table");
+  assert.deepEqual(table.rows, [["`a|b`", "**ok**"], ["short"]]);
+  assert.equal(blocks[1].kind, "paragraph");
+  assert.equal(blocks[2].kind, "code");
+  assert.equal(richBlocks("| A | B |\n| --- |\n")[0].kind, "paragraph");
+});
 
 test("讨论的 Markdown 与机器人 HTML 徽章、链接混排，不展示包装标签", () => {
   const blocks = richBlocks('### 检查结果\n<div><img src="https://img.shields.io/badge/status-passed-green" />&nbsp;&nbsp;<a href="https://example.com/result?a=1&amp;b=2"><img src="/badge.svg" alt="查看结果" /></a></div>\n\n#### 建议\n使用 `value`，**先检查**。\n\n---');

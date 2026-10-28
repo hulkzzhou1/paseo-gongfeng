@@ -1,26 +1,17 @@
 {
   "id": "gongfeng-workbench",
   "name": "工蜂",
-  "description": "Manage Gongfeng repositories, merge requests, milestones, code changes, discussions and reviewer actions in Paseo.",
+  "description": "Manage Gongfeng repositories, merge requests, issues and milestones with compact tables, floating details and configurable refresh in Paseo.",
   "requirements": {
-    "paseo": ">=0.12.0"
+    "paseo": ">=0.13.2"
   },
   "translations": {
     "zh-CN": {
       "name": "工蜂",
-      "description": "管理工蜂仓库关联、里程碑，查询当前及历史 MR、差异、讨论与评审状态。"
+      "description": "以紧凑表格、悬浮详情和可配置刷新管理工蜂仓库、MR、议题、里程碑及人工评审。"
     }
   },
   "media": [
     "assets/gongfeng-board.png"
-  ],
-  "build": [
-    [
-      "npm",
-      "ci",
-      "--omit=dev",
-      "--ignore-scripts",
-      "--registry=https://registry.npmjs.org"
-    ]
   ]
 }

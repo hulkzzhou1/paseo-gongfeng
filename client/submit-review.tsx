@@ -1,3 +1,4 @@
+import { useDraft } from "./draft-guard.tsx";
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -41,7 +42,8 @@ export function SubmitReview({ theme, reference, review, sourceSha, onClose, onS
     onError() { setBlocked(true); setMessage("提交结果未知，请关闭弹窗并刷新详情、在工蜂核对原始记录；不会自动重发。"); void cache.invalidateQueries({ queryKey: key }); },
   });
   const busy = mutation.isPending;
-  return <Modal title="发表评审意见" open onOpenChange={open => { if (!open && !busy) onClose(); }}><Modal.Content>
+  const requestClose=useDraft(summary.length>0||event!=="approve",busy);
+  return <Modal title="发表评审意见" open onOpenChange={open => { if (!open && !busy) requestClose(onClose); }}><Modal.Content>
     <View testID="gongfeng-submit-review" style={{ gap: 14 }}>
       <View accessibilityRole="radiogroup" accessibilityLabel="评审意见类型" style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
         {options.map(option => <Pressable key={option.value} accessibilityRole="radio" accessibilityLabel={option.label} aria-checked={event === option.value} accessibilityState={{ checked: event === option.value, disabled: busy || blocked }}
@@ -54,7 +56,7 @@ export function SubmitReview({ theme, reference, review, sourceSha, onClose, onS
         style={{ ...styles.text, minHeight: 120, padding: 12, borderWidth: 1, borderColor: c.border, borderRadius: 6, backgroundColor: c.surface0 }} />
       <Text selectable style={styles.muted}>以 @{target.username} 提交 · <Text style={{ fontFamily: mono }}>源提交 {target.sourceSha.slice(0, 12)}</Text></Text>
       {message ? <Text accessibilityLiveRegion="polite" style={styles.text}>{message}</Text> : null}
-      <View style={[styles.toolbar, { justifyContent: "flex-end" }]}><Action theme={theme} label="取消" disabled={busy} onPress={onClose} /><Action theme={theme} primary label={busy ? "正在提交…" : "确认"} disabled={busy || blocked || !target.revision} onPress={() => mutation.mutate()} /></View>
+      <View style={[styles.toolbar, { justifyContent: "flex-end" }]}><Action theme={theme} label="取消" disabled={busy} onPress={()=>requestClose(onClose)} /><Action theme={theme} primary label={busy ? "正在提交…" : "确认"} disabled={busy || blocked || !target.revision} onPress={() => mutation.mutate()} /></View>
     </View>
   </Modal.Content></Modal>;
 }

@@ -1,4 +1,7 @@
-import { useSiteUrl } from "./site.ts";
+import { readResult, accessLost } from "./query-policy.ts";
+import { useDraft } from "./draft-guard.tsx";
+import { useQueryPolicy } from "./query.tsx";
+import { useConnection } from "./site.ts";
 import { useState } from "react";
 import { Text, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -8,21 +11,22 @@ import { Action } from "./workbench-ui.tsx";
 import { cloneRepository, listCloneOperations } from "../shared/clone.ts";
 
 export function CloneRepository({ repositoryId, theme }: { repositoryId?: number; theme: PluginScreenProps["theme"] }) {
-  const siteUrl = useSiteUrl();
+  const connection=useConnection(),siteUrl=connection?.siteUrl,accountId=connection?.account.id;
   const clone = useRpc(cloneRepository); const list = useRpc(listCloneOperations); const cache = useQueryClient();
   const [targetPath, setTargetPath] = useState(""); const [notice, setNotice] = useState("");
   const create = useMutation({ mutationFn: clone, onSuccess: result => {
     setNotice(result.ok ? `克隆、项目登记与关联已完成：${result.operation.projectId}` : cloneErrorText(result.error));
-    void cache.invalidateQueries({ queryKey: ["managed-repositories"] }); void cache.invalidateQueries({ queryKey: ["repository-bindings"] }); void cache.invalidateQueries({ queryKey: ["repository-clones", siteUrl] });
-  }, onError: () => { setNotice("暂时无法确认结果，请刷新克隆记录；已创建的资源会保留。不要换目录重复提交。"); void cache.invalidateQueries({ queryKey: ["repository-clones", siteUrl] }); } });
-  const history = useQuery({ queryKey: ["repository-clones", siteUrl], queryFn: () => list({ siteUrl }), retry: false, refetchInterval: create.isPending ? 1000 : false });
+    void cache.invalidateQueries({ queryKey: ["managed-repositories"] }); void cache.invalidateQueries({ queryKey: ["repository-bindings"] }); void cache.invalidateQueries({ queryKey: ["repository-clones", siteUrl,accountId] });
+  }, onError: () => { setNotice("暂时无法确认结果，请刷新克隆记录；已创建的资源会保留。不要换目录重复提交。"); void cache.invalidateQueries({ queryKey: ["repository-clones", siteUrl,accountId] }); } });
+  const history = useQuery({ ...useQueryPolicy("options"), queryKey: ["repository-clones", siteUrl,accountId], queryFn: () => readResult(list({ siteUrl })), retry: false, refetchInterval: create.isPending ? 1000 : false });
+  useDraft(targetPath.length>0&&!create.isSuccess,create.isPending);
   return <SettingsSection title="克隆并创建 Paseo 项目" info="使用本机已有 SSH 权限。目标父目录必须存在，目标目录必须尚不存在；克隆不使用 OpenAPI Token，不自动下载 LFS 对象或子模块。">
     <SettingsCard>
       <SettingsInput label="本机目标绝对路径" initialValue="" placeholder="/path/to/workspaces/repository" onChangeText={setTargetPath} />
       <SettingsRow label={repositoryId ? `克隆选中仓库 #${repositoryId}` : "请先在上方选择工蜂仓库"} hint={targetPath || "填写将要创建的目录"}><Action theme={theme} primary label={create.isPending ? "处理中…" : "克隆并关联"} disabled={!repositoryId || !targetPath.trim() || create.isPending} onPress={() => { if (repositoryId) create.mutate({ siteUrl, repositoryId, targetPath }); }} /></SettingsRow>
       <SettingsRow label="克隆进度与恢复记录"><Action theme={theme} label="刷新" disabled={history.isFetching} onPress={() => void history.refetch()} /></SettingsRow>
       {history.isPending ? <SettingsRow label="正在读取克隆记录…" /> : history.isError || (history.data && !history.data.ok) ? <SettingsRow label="无法读取克隆记录，请刷新后重试" /> : null}
-      {history.data?.ok && history.data.operations.filter(operation => repositoryId === undefined || operation.repositoryId === repositoryId).map(operation => <View key={operation.id}>
+      {!(history.isError&&accessLost(history.error)) && history.data?.ok && history.data.operations.filter(operation => repositoryId === undefined || operation.repositoryId === repositoryId).map(operation => <View key={operation.id}>
         <SettingsRow label={`仓库 #${operation.repositoryId} · ${stageText[operation.stage]}`} hint={`${operation.targetPath}${operation.projectId ? `\nPaseo 项目：${operation.projectId}` : ""}${operation.error ? `\n${cloneErrorText(operation.error)}` : ""}`} />
         {operation.stage === "cloned" || operation.stage === "registered" ? <SettingsRow label="继续登记或关联，保留现有代码"><Action theme={theme} label="恢复" disabled={create.isPending} onPress={() => create.mutate({ siteUrl, repositoryId: operation.repositoryId, targetPath: operation.targetPath })} /></SettingsRow> : null}
         {operation.stage === "reserved" || operation.stage === "cloning" ? <SettingsRow label="若克隆已中断，请保留此目录并选择新的目标位置。" /> : null}

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/react-native";
 import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
 
@@ -22,11 +22,11 @@ export function WorkbenchCard({ theme, title, icon, tag, right, testID, children
   theme: Theme; title: string; icon: string; tag?: string; right?: ReactNode; testID?: string; children: ReactNode;
 }) {
   const styles = workbenchStyles(theme), c = theme.colors;
-  return <View testID={testID} style={[styles.panel, { borderLeftWidth: 3, borderLeftColor: c.accent }]}>
+  return <View testID={testID} style={[styles.panel, { borderLeftWidth: 1, borderLeftColor: c.border }]}>
     <View style={styles.panelHeader}>
-      <Icon name={icon} size={18} color={c.accent} />
+      <Icon name={icon} size={15} color={c.foregroundMuted} />
       {tag ? <Text style={{ color: c.accent, fontSize: 12, fontWeight: "700", paddingHorizontal: 6, paddingVertical: 3, backgroundColor: c.surface0, borderRadius: 4 }}>{tag}</Text> : null}
-      <Text accessibilityRole="header" style={[styles.text, { fontWeight: "700", fontSize: 15, flex: 1 }]}>{title}</Text>
+      <Text accessibilityRole="header" style={[styles.text, { fontWeight: "600", fontSize: 13, flex: 1 }]}>{title}</Text>
       {right}
     </View>
     {children}
@@ -65,14 +65,32 @@ export function StateBadge({ theme, state }: { theme: Theme; state: string }) {
   </View>;
 }
 
-export function WorkbenchNavigation({ theme, compact, selected, onMergeRequests, onMilestones, onRepositories, siteUrl }: {
-  theme: Theme; compact: boolean; selected: "mrs" | "milestones"; onMergeRequests(): void; onMilestones(): void; onRepositories(): void; siteUrl?: string;
+export function WorkbenchNavigation({ theme, compact, selected, onMergeRequests, onMilestones, onRepositories, onIssues, siteUrl }: {
+  theme: Theme; compact: boolean; selected: "mrs" | "milestones" | "issues" | "repositories"; onIssues?(): void; onMergeRequests(): void; onMilestones(): void; onRepositories(): void; siteUrl?: string;
 }) {
   const styles = workbenchStyles(theme);
   return <View testID="gongfeng-board-navigation" style={{ ...styles.toolbar, paddingHorizontal: compact ? 12 : 16, paddingVertical: compact ? 6 : 7, borderBottomWidth: 1, borderColor: theme.colors.border }}>
-    <Action theme={theme} dense={!compact} pill label="合并请求" icon="GitPullRequest" selected={selected === "mrs"} onPress={onMergeRequests} />
-    <Action theme={theme} dense={!compact} pill label="里程碑" icon="Flag" selected={selected === "milestones"} onPress={onMilestones} />
-    <Action theme={theme} dense={!compact} pill label="仓库管理" icon="GitBranch" selected={false} onPress={onRepositories} />
+    <Action theme={theme} dense={!compact} label="合并请求" icon="GitPullRequest" selected={selected === "mrs"} onPress={onMergeRequests} />
+    {onIssues ? <Action theme={theme} dense={!compact} label="议题" icon="CircleDot" selected={selected === "issues"} onPress={onIssues} /> : null}
+    <Action theme={theme} dense={!compact} label="里程碑" icon="Flag" selected={selected === "milestones"} onPress={onMilestones} />
+    <Action theme={theme} dense={!compact} label="仓库管理" icon="GitBranch" selected={selected === "repositories"} onPress={onRepositories} />
     {!compact ? <Text numberOfLines={1} style={[styles.muted, { flex: 1, textAlign: "right" }]}>{siteUrl ?? "请先配置工蜂站点"}</Text> : null}
   </View>;
+}
+
+export function WorkbenchHeader({theme,compact,onSettings,onRefresh,busy,updatedAt,error,children}:{theme:Theme;compact:boolean;onSettings():void;onRefresh():void;busy?:boolean;updatedAt?:number;error?:boolean;children?:ReactNode}) {
+ const styles=workbenchStyles(theme);
+ return <View style={[styles.toolbar,{paddingHorizontal:compact?12:16,paddingVertical:8,borderBottomWidth:1,borderColor:theme.colors.border}]}>
+  <Text accessibilityRole="header" style={[styles.text,{fontWeight:'700',fontSize:17,flex:1}]}>工蜂</Text>
+  <Text accessibilityLiveRegion="polite" style={styles.muted}>{error?'更新未完成 · ':busy?'正在更新 · ':''}{updatedAt?`更新于 ${new Date(updatedAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`:'尚未更新'}</Text>
+  {children}<Action theme={theme} dense={!compact} iconOnly label="工蜂设置" icon="Settings" onPress={onSettings}/><Action theme={theme} dense={!compact} iconOnly label="刷新工作台" icon="RefreshCw" disabled={busy} onPress={onRefresh}/>
+ </View>;
+}
+export function RefreshNotice({theme,pages,busy,updatedAt}:{theme:Theme;pages:number;busy?:boolean;updatedAt?:number}) {
+ const styles=workbenchStyles(theme);
+ return <View style={styles.toolbar}>{pages>1?<Text style={styles.muted}>已加载多页，自动刷新已暂停；手动刷新将返回第一页。</Text>:null}{busy&&updatedAt?<Text accessibilityLiveRegion="polite" style={styles.muted}>正在更新，已加载内容保留…</Text>:null}</View>;
+}
+
+export function InitialLoading({theme,label}:{theme:Theme;label:string}) {
+ return <View pointerEvents="none" style={{position:'absolute',inset:0,alignItems:'center',justifyContent:'center',backgroundColor:theme.colors.surface0}}><ActivityIndicator accessibilityLabel={label} color={theme.colors.accent}/></View>;
 }

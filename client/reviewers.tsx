@@ -1,3 +1,6 @@
+import { readResult, accessLost, invalidateResources } from "./query-policy.ts";
+import { useDraft } from "./draft-guard.tsx";
+import { useQueryPolicy } from "./query.tsx";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -27,11 +30,11 @@ export function EditReviewers({ theme, reference, review, onClose, onSaved }: {
   const [notice, setNotice] = useState(""), [uncertain, setUncertain] = useState(false);
   useEffect(() => { const timer = setTimeout(() => { setQuery(draft.trim()); setPage(1); }, 300); return () => clearTimeout(timer); }, [draft]);
   const key = ["mr", reference.siteUrl, reference.accountId, reference.projectId, reference.mrId];
-  const search = useQuery({ queryKey: [...key, "reviewer-candidates", query, page], queryFn: () => searchRpc({ ...reference, query, page }), enabled: activeGroup !== null && query.length > 0, retry: false });
+  const search = useQuery({ ...useQueryPolicy("options"), queryKey: [...key, "reviewer-candidates", query, page], queryFn: () => readResult(searchRpc({ ...reference, query, page })), enabled: activeGroup !== null && query.length > 0, retry: false });
   const mutation = useMutation({ mutationFn: () => saveRpc({ ...reference, revision: baseline.revision!, reviewers: people.map(({ id, necessary }) => ({ id, necessary })) }), retry: false,
     onSuccess(result) {
       if (result.current?.ok) { cache.setQueryData([...key, "review"], result.current); setBaseline(result.current); setPeople(draftFrom(result.current)); }
-      if (result.ok) { void cache.invalidateQueries({ queryKey: key }); onSaved(); onClose(); return; }
+      if (result.ok) { void invalidateResources(cache,reference,["board"]); void cache.invalidateQueries({ queryKey: key }); onSaved(); onClose(); return; }
       if (result.attempted) void cache.invalidateQueries({ queryKey: key });
       setUncertain(!!result.attempted && !result.current?.ok);
       setNotice(result.error === "stale_review" ? "评审状态或名单已变化，本次未提交。已载入最新名单，请重新选择。"
@@ -60,10 +63,11 @@ export function EditReviewers({ theme, reference, review, onClose, onSaved }: {
   const toggleGroup = (necessary: boolean) => activeGroup === necessary ? closeDropdown() : positionDropdown(necessary, true);
   useEffect(() => { if (activeGroup !== null) positionDropdown(activeGroup, false); }, [activeGroup, people, showRules]);
   const changed = people.length !== baseline.reviewers.length || people.some(p => !baseline.reviewers.some(old => old.id === p.id && (old.type === "necessary") === p.necessary));
+  const requestClose=useDraft(changed,busy);
   const current = draft.trim() === query && !search.isFetching;
-  const choices = !draft.trim() ? [...new Map([...draftFrom(baseline), ...people].map(p => [p.id, p])).values()] : current && search.data?.ok ? search.data.items : [];
+  const choices = !draft.trim() ? [...new Map([...draftFrom(baseline), ...people].map(p => [p.id, p])).values()] : current && !(search.isError&&accessLost(search.error)) && search.data?.ok ? search.data.items : [];
   const necessary = activeGroup === true, label = necessary ? "必要评审人" : "普通评审人";
-  return <Modal title="编辑评审人" open onOpenChange={open => { if (!open && !busy) onClose(); }}><Modal.Content scrollable={false}>
+  return <Modal title="编辑评审人" open onOpenChange={open => { if (!open && !busy) requestClose(onClose); }}><Modal.Content scrollable={false}>
     <View ref={root} onLayout={() => { if (activeGroup !== null) positionDropdown(activeGroup, false); }} testID="gongfeng-edit-reviewers" style={{ flex: 1, minHeight: 0, gap: 12 }}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ gap: 12 }} keyboardShouldPersistTaps="handled">
         <View style={styles.toolbar}>
@@ -100,7 +104,7 @@ export function EditReviewers({ theme, reference, review, onClose, onSaved }: {
         {notice ? <Text accessibilityLiveRegion="polite" style={styles.text}>{notice}</Text> : null}
         {people.length > 100 ? <Text style={styles.text}>当前名单超过 100 人，请在工蜂管理。</Text> : null}
       </ScrollView>
-      <View style={[styles.toolbar, { justifyContent: "flex-end" }]}><Action theme={theme} label="取消" disabled={busy} onPress={onClose} /><Action theme={theme} primary label={busy ? "正在保存…" : "保存评审人"} disabled={busy || uncertain || !changed || !baseline.revision || people.length > 100} onPress={() => mutation.mutate()} /></View>
+      <View style={[styles.toolbar, { justifyContent: "flex-end" }]}><Action theme={theme} label="取消" disabled={busy} onPress={()=>requestClose(onClose)} /><Action theme={theme} primary label={busy ? "正在保存…" : "保存评审人"} disabled={busy || uncertain || !changed || !baseline.revision || people.length > 100} onPress={() => mutation.mutate()} /></View>
       {activeGroup !== null && placement ? <>
         <Pressable accessibilityRole="button" accessibilityLabel="关闭评审人候选" onPress={closeDropdown} style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, zIndex: 1 }} />
         <View testID="reviewer-candidates" style={[styles.panel, { position: "absolute", ...placement, zIndex: 2, borderColor: c.accent, shadowColor: c.foreground, shadowOpacity: .14, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 8 }]}>

@@ -1,17 +1,19 @@
+import { useDiscard } from "./draft-guard.tsx";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { AccessibilityInfo, Animated, Easing, Pressable, View } from "react-native";
 import type { Theme } from "./workbench-ui.tsx";
 
 export function Drawer({ width, theme, onDismiss, children, label = "MR 详情" }: { label?: string; width: number; theme: Theme; onDismiss(): void; children(close: () => void, ready: boolean): ReactNode }) {
+  const discard=useDiscard();
   const progress = useRef(new Animated.Value(0)).current;
   const [ready, setReady] = useState(false);
   const reduceMotion = useRef(true), closing = useRef(false);
-  const close = useCallback(() => {
+  const close = useCallback(() => discard(() => {
     if (closing.current) return;
     closing.current = true;
     if (reduceMotion.current) { onDismiss(); return; }
     Animated.timing(progress, { toValue: 0, duration: 160, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(({ finished }) => { if (finished) onDismiss(); });
-  }, [onDismiss, progress]);
+  }), [onDismiss, progress, discard]);
   useEffect(() => {
     let live = true;
     void AccessibilityInfo.isReduceMotionEnabled().then(reduced => {

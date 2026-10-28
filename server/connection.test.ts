@@ -16,11 +16,11 @@ let handlers: Map<string, (input: unknown) => unknown>;
 
 function start() {
   handlers = new Map();
-  cleanup = contribute({
+  cleanup = contribute({ before() { return () => {}; }, registerSettings(definition) { return { read: async () => ({ status: "ready" as const, revision: "test", values: definition.schema.parse({}) }), subscribe: () => () => {} }; },
     handle(contract, handler) {
       handlers.set(contract.name, (input) => handler(contract.input.parse(input), {} as never));
     },
-  } as PluginServerContext);
+  } satisfies Pick<PluginServerContext,"handle"|"registerSettings"|"before"> as unknown as PluginServerContext);
 }
 
 async function rpc<T>(contract: { name: string; input: ZodType; output: ZodType<T> }, input: unknown = {}) {

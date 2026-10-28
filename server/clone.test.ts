@@ -31,7 +31,7 @@ test("克隆使用自定义SSH主机，历史隔离且不能复用另一站点�
 });
 function start() {
   handlers = new Map();
-  const cleanup = contribute({ handle(contract, handler) { handlers.set(contract.name, input => Promise.resolve(handler(contract.input.parse(input), { paseo: { projects: { list: async () => ({ projects: JSON.parse(await readFile(join(home, "projects.json"), "utf8")) }) } } } as never))); } } as PluginServerContext);
+  const cleanup = contribute({ before() { return () => {}; }, registerSettings(definition) { return { read: async () => ({ status: "ready" as const, revision: "test", values: definition.schema.parse({}) }), subscribe: () => () => {} }; }, handle(contract, handler) { handlers.set(contract.name, input => Promise.resolve(handler(contract.input.parse(input), { paseo: { projects: { list: async () => ({ projects: JSON.parse(await readFile(join(home, "projects.json"), "utf8")) }) } } } as never))); } } satisfies Pick<PluginServerContext,"handle"|"registerSettings"|"before"> as unknown as PluginServerContext);
   stop = () => { void cleanup(); };
 }
 async function rpc<T>(contract: { name: string; input: ZodType; output: ZodType<T> }, input: unknown = {}) { const fn = handlers.get(contract.name); assert(fn, `missing ${contract.name}`); return contract.output.parse(await fn(input)); }

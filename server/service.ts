@@ -9,9 +9,10 @@ import { registerAdditions } from "./additions.ts";
 import { registerRepositories } from "./repositories.ts";
 import { registerBoard } from "./board.ts";
 import { registerMilestones } from "./milestones.ts";
+import { registerIssues } from "./issues.ts";
 import { registerClone } from "./clone.ts";
 
-// One set of business handlers and write queues serves both UI RPC and explicit MCP tools.
+// One set of business handlers and write queues serves both UI RPC and explicit Agent tools.
 export function createGongfengService() {
   const api = createGongfengClient();
   const operations = new Map<string, { contract: PluginRpcContract; run(input: unknown, context: PluginHandlerContext): unknown }>();
@@ -26,23 +27,21 @@ export function createGongfengService() {
   const repositories = registerRepositories(registrar, api);
   registerBoard(registrar, api, repositories);
   registerMilestones(registrar, api, repositories);
+  registerIssues(registrar, api, repositories);
   const stopClone = registerClone(registrar, api, repositories);
-  let hostContext: PluginHandlerContext | undefined;
-  const context: PluginHandlerContext = { get paseo() { if (!hostContext) throw new Error("Host context unavailable"); return hostContext.paseo; } };
+  const context: PluginHandlerContext = { get paseo(): PluginHandlerContext["paseo"] { throw new Error("Host context required"); } };
   const execute = async (contract: PluginRpcContract, input: unknown, caller = context) => {
     const operation = operations.get(contract.name);
     if (!operation || operation.contract !== contract) throw new Error("Unknown business operation");
     return contract.output.parse(await operation.run(input, caller));
   };
-  return { api, execute, canInjectMcp: repositories.canInjectMcp,
-    setHostContext(value: PluginHandlerContext) { hostContext = value; },
+  return { api, execute, canUseAgentTools: repositories.canUseAgentTools,
     registerRpc(server: Pick<PluginServerContext, "handle">) {
       for (const { contract } of operations.values()) server.handle(contract, (input, caller) => {
-        hostContext = caller;
         return execute(contract, input, caller);
       });
     },
-    dispose() { stopClone(); api.dispose(); hostContext = undefined; },
+    dispose() { stopClone(); api.dispose(); },
   };
 }
 export type GongfengService = ReturnType<typeof createGongfengService>;

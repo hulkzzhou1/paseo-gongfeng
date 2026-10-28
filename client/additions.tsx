@@ -1,3 +1,5 @@
+import { readResult, accessLost } from "./query-policy.ts";
+import { useQueryPolicy } from "./query.tsx";
 import { Text, View } from "react-native";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useRpc, type PluginScreenProps } from "@getpaseo/plugin/client";
@@ -7,24 +9,24 @@ import type { MrRef, MrDetail } from "../shared/detail.ts";
 import { errorMessages } from "./errors.ts";
 import { Action, WorkbenchCard, mono, workbenchStyles } from "./workbench-ui.tsx";
 const message = (error: string, ci = false) => error === "version_changed" ? "MR 版本已变化或检查版本不一致，请刷新 MR 详情后重试。" : error === "version_unknown" ? "无法确认 MR 源提交，CI 状态未知。" : error === "forbidden" ? ci ? "无权限读取此区块。CI 摘要接口可能要求 Developer 权限，请在原站核对；不会自动扩大权限。" : "无权限读取 TAPD 关联，请在工蜂原站核对。" : errorMessages[error] ?? "无法连接 Paseo，请重试。";
-export function MRAdditions({ reference, detail, theme }: { reference: MrRef; detail?: MrDetail; theme: PluginScreenProps["theme"] }) {
+export function MRAdditions({ reference, detail, theme, active }: { reference: MrRef; detail?: MrDetail; theme: PluginScreenProps["theme"]; active:boolean }) {
   const tapdRpc = useRpc(mrTapd), ciRpc = useRpc(mrCi);
   const key = ["mr", reference.siteUrl, reference.accountId, reference.projectId, reference.mrId];
-  const tapd = useQuery({ queryKey: [...key,"tapd"], queryFn: () => tapdRpc(reference), retry: false, refetchOnWindowFocus: false });
-  const ci = useInfiniteQuery({ queryKey: [...key,"ci",detail?.sourceProjectId,detail?.sourceSha,detail?.targetBranch], enabled: !!detail?.sourceSha,
+  const tapd = useQuery({ ...useQueryPolicy("detail",active), enabled:active, queryKey: [...key,"tapd"], queryFn: () => readResult(tapdRpc(reference)), retry: false, refetchOnWindowFocus: false });
+  const ci = useInfiniteQuery({ ...useQueryPolicy("detail",active), queryKey: [...key,"ci",detail?.sourceProjectId,detail?.sourceSha,detail?.targetBranch], enabled: active && !!detail?.sourceSha,
     initialPageParam: 1, queryFn: async ({pageParam}) => { const result = await ciRpc({ ...reference, sourceProjectId: detail!.sourceProjectId, sourceSha: detail!.sourceSha!, targetBranch: detail!.targetBranch, page: pageParam }); if (!result.ok) throw new Error(result.error); return result; },
     getNextPageParam: last => last.nextPage ?? undefined, retry: false, refetchOnWindowFocus: false,
   });
-  const checks = [...new Map((ci.data?.pages.flatMap(page => page.items) ?? []).map(item => [item.id,item])).values()];
-  const last = ci.data?.pages.at(-1);
+  const checks = ci.isError&&accessLost(ci.error)?[]:[...new Map((ci.data?.pages.flatMap(page => page.items) ?? []).map(item => [item.id,item])).values()];
+  const last = ci.isError&&accessLost(ci.error)?undefined:ci.data?.pages.at(-1);
   const incomplete = ci.hasNextPage || (last && (last.incomplete || checks.length < last.total)) || (ci.data && new Set(ci.data.pages.map(page=>page.total)).size > 1);
   const styles = workbenchStyles(theme), c = theme.colors;
   return <View style={{ gap: 16 }}>
     <WorkbenchCard theme={theme} title="关联需求" icon="ClipboardList" tag="TAPD" testID="gongfeng-tapd-card">
       {tapd.isError || tapd.data && !tapd.data.ok ? <Text style={[styles.text, { padding: 12 }]}>{tapd.data && !tapd.data.ok ? message(tapd.data.error) : "无法读取关联，请重试。"}</Text> : null}
-      {tapd.data?.ok && !tapd.data.items.length ? <Text style={[styles.muted, { padding: 16 }]}>此 MR 暂未关联 TAPD 工作项。</Text> : null}
-      {tapd.data?.ok && tapd.data.incomplete ? <Text style={[styles.text, { padding: 12 }]}>关联数量过多，显示已截断，请在原站查看完整记录。</Text> : null}
-      {tapd.data?.ok && tapd.data.items.map(item => <View key={`${item.workspaceId}:${item.kind}:${item.id}`} style={{ padding: 14, gap: 8, borderTopWidth: 1, borderColor: c.border }}>
+      {!(tapd.isError&&accessLost(tapd.error)) && tapd.data?.ok && !tapd.data.items.length ? <Text style={[styles.muted, { padding: 16 }]}>此 MR 暂未关联 TAPD 工作项。</Text> : null}
+      {!(tapd.isError&&accessLost(tapd.error)) && tapd.data?.ok && tapd.data.incomplete ? <Text style={[styles.text, { padding: 12 }]}>关联数量过多，显示已截断，请在原站查看完整记录。</Text> : null}
+      {!(tapd.isError&&accessLost(tapd.error)) && tapd.data?.ok && tapd.data.items.map(item => <View key={`${item.workspaceId}:${item.kind}:${item.id}`} style={{ padding: 14, gap: 8, borderTopWidth: 1, borderColor: c.border }}>
         <Text selectable style={{ color: c.foreground, fontSize: 16, lineHeight: 23, fontWeight: "600" }}>{item.title}</Text>
         <View style={styles.toolbar}>
           <Text style={[styles.muted, { paddingHorizontal: 6, paddingVertical: 2, backgroundColor: c.surface2, borderRadius: 4 }]}>{item.kind}</Text>

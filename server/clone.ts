@@ -28,11 +28,12 @@ export function registerClone(server: Pick<PluginServerContext, "handle">, api: 
     try { await writeFile(temp, JSON.stringify(operations), { flag: "wx", mode: 0o600 }); await rename(temp, file); }
     finally { await rm(temp, { force: true }).catch(() => {}); }
   }
-  async function git(args: string[]) {
+  async function git(args: string[], signal = lifetime.signal) {
+    if (signal.aborted) throw new Error("Operation canceled");
     const env = { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_SSH_COMMAND: "ssh -o BatchMode=yes -o StrictHostKeyChecking=yes" };
     for (const key of Object.keys(env)) if (key.startsWith("GIT_CONFIG") || ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_TEMPLATE_DIR"].includes(key)) delete (env as NodeJS.ProcessEnv)[key];
     Object.assign(env, { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1" });
-    return execute("git", ["-c", "core.hooksPath=/dev/null", ...args], { timeout: 120_000, maxBuffer: 256 * 1024, signal: lifetime.signal, env });
+    return execute("git", ["-c", "core.hooksPath=/dev/null", ...args], { timeout: 120_000, maxBuffer: 256 * 1024, signal, env });
   }
   server.handle(listCloneOperations, async input => {
     try {
@@ -43,12 +44,18 @@ export function registerClone(server: Pick<PluginServerContext, "handle">, api: 
   });
   server.handle(cloneRepository, (input, context) => {
     return api.exclusive(async () => {
+      const controller = new AbortController(), signal = controller.signal, callerSignal = api.signal;
+      const abort = () => controller.abort();
+      lifetime.signal.addEventListener("abort", abort, { once: true }); callerSignal?.addEventListener("abort", abort, { once: true });
+      if (lifetime.signal.aborted || callerSignal?.aborted) abort();
+      const checkCanceled = () => { if (signal.aborted) throw new Error("Operation canceled"); };
       let operation: Operation | undefined; let operations: Operation[] = [];
       const fail = async (error: string) => {
         if (operation) { operation.error = error; await write(operations).catch(() => {}); }
         return { ok: false as const, error, ...(operation ? { operation: visible(operation) } : {}) };
       };
       try {
+        checkCanceled();
         if (!isAbsolute(input.targetPath)) return fail("invalid_path");
         let targetPath: string;
         try { targetPath = join(await realpath(dirname(resolve(input.targetPath))), basename(resolve(input.targetPath))); }
@@ -59,15 +66,18 @@ export function registerClone(server: Pick<PluginServerContext, "handle">, api: 
         if (existing && (existing.siteUrl !== session.siteUrl || existing.repositoryId !== input.repositoryId)) return fail("target_conflict");
         operation = existing;
         const response = await session.get(`/projects/${input.repositoryId}`); if (!response.ok) return fail(response.error);
+        checkCanceled();
         const parsed = z.object({ id: z.literal(input.repositoryId), path_with_namespace: z.string() }).safeParse(response.data);
         const remote = parsed.success ? trustedSshRemote(parsed.data.path_with_namespace, session.siteUrl) : null;
         if (!remote) return fail("invalid_response");
         if (!operation) {
           try { await lstat(targetPath); return fail("target_exists"); }
           catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") return fail("invalid_path"); }
+          checkCanceled();
           operation = { siteUrl: session.siteUrl, id: randomUUID(), repositoryId: input.repositoryId, targetPath, remote, stage: "reserved" }; operations.push(operation); await write(operations);
+          checkCanceled();
           await mkdir(targetPath, { mode: 0o700 }); const stat = await lstat(targetPath); operation.device = stat.dev; operation.inode = stat.ino; operation.stage = "cloning"; await write(operations);
-          try { await git(["clone", "--template=", "--", remote, targetPath]); }
+          try { await git(["clone", "--template=", "--", remote, targetPath], signal); }
           catch { return fail("clone_failed"); }
           operation.stage = "cloned"; delete operation.error; await write(operations);
         }
@@ -75,20 +85,22 @@ export function registerClone(server: Pick<PluginServerContext, "handle">, api: 
         if (operation.stage === "reserved" || operation.stage === "cloning") return fail("clone_incomplete");
         const stat = await lstat(targetPath);
         if (!stat.isDirectory() || stat.isSymbolicLink() || stat.dev !== operation.device || stat.ino !== operation.inode) return fail("target_changed");
-        try { const { stdout } = await git(["-C", targetPath, "config", "--get", "remote.origin.url"]); if (stdout.trim() !== remote) return fail("target_changed"); }
+        try { const { stdout } = await git(["-C", targetPath, "config", "--get", "remote.origin.url"], signal); if (stdout.trim() !== remote) return fail("target_changed"); }
         catch { return fail("target_changed"); }
         let projects;
         try { projects = (await context.paseo.projects.list()).projects; }
         catch { return fail("host_error"); }
+        checkCanceled();
         let project = projects.find(item => resolve(item.projectRootPath) === targetPath);
         if (operation.projectId && project?.projectId !== operation.projectId) return fail("project_missing");
         if (!project) {
-          try { await execute("paseo", ["project", "create", targetPath, "--home", home, "--json"], { timeout: 30_000, maxBuffer: 128 * 1024, signal: lifetime.signal }); }
+          try { checkCanceled(); await execute("paseo", ["project", "create", targetPath, "--home", home, "--json"], { timeout: 30_000, maxBuffer: 128 * 1024, signal }); }
           catch { return fail("registration_failed"); }
           try { project = (await context.paseo.projects.list()).projects.find(item => resolve(item.projectRootPath) === targetPath); }
           catch { return fail("host_error"); }
           if (!project) return fail("registration_unverified");
         }
+        checkCanceled();
         operation.projectId = project.projectId;
         if (operation.stage !== "completed") {
           operation.stage = "registered"; delete operation.error; await write(operations);
@@ -98,6 +110,7 @@ export function registerClone(server: Pick<PluginServerContext, "handle">, api: 
         }
         delete operation.error; await write(operations); return { ok: true as const, operation: visible(operation) };
       } catch { return fail("storage_error"); }
+      finally { lifetime.signal.removeEventListener("abort", abort); callerSignal?.removeEventListener("abort", abort); }
     });
   });
   return () => lifetime.abort();

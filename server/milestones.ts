@@ -51,6 +51,7 @@ export function registerMilestones(server: Pick<PluginServerContext, "handle">, 
     if (input.milestoneId) {
       const before = await read({ ...input, milestoneId: input.milestoneId }); if (!before.ok) return before;
       if (before.milestone.revision !== input.revision) return { ok: false as const, error: "stale_milestone" as const };
+      if (before.milestone.descriptionTruncated && input.description !== undefined) return invalid;
     }
     const body = { title: input.title, ...(input.description !== undefined ? { description: input.description } : {}), ...(input.dueDate !== undefined ? { due_date: input.dueDate ?? "" } : {}), ...(input.stateEvent ? { state_event: input.stateEvent } : {}) };
     const endpoint = `/projects/${input.projectId}/milestones`;

@@ -22,7 +22,7 @@ export function createGongfengClient() {
   const tokenFile = join(directory, "private-token");
   const lifetime = new AbortController();
   let pending: Promise<unknown> = Promise.resolve();
-  const connectionScope = new AsyncLocalStorage<{ key: string; active: () => boolean }>();
+  const connectionScope = new AsyncLocalStorage<{ key: string; active: () => boolean; signal?: AbortSignal; authorizeWrite?: () => Promise<boolean> }>();
   const listeners = new Set<() => Promise<void>>();
   async function configurationKey() {
     const saved = await readCredentials();
@@ -37,6 +37,9 @@ export function createGongfengClient() {
   function serialize<T>(operation: () => Promise<T>): Promise<T> {
     const result = pending.then(async () => {
       if (!await currentScope()) throw new Error("Gongfeng connection changed");
+      const authorize = connectionScope.getStore()?.authorizeWrite;
+      if (authorize && !await authorize()) throw new Error("Gongfeng project association changed");
+      if (authorize && !await currentScope()) throw new Error("Gongfeng connection changed");
       return operation();
     });
     pending = result.catch(() => {});
@@ -91,6 +94,8 @@ export function createGongfengClient() {
   }
 
   async function request(siteUrl: string, token: string, path: string, query: Record<string, string> = {}, mutation?: { method: "POST" | "DELETE" | "PUT"; body?: Record<string, unknown> }): Promise<ApiResult> {
+    try { if (!await currentScope()) return { ok: false, error: "account_changed" }; }
+    catch { return { ok: false, error: "storage_error" }; }
     if (!/^\/(user$|projects(?:\/|$)|dashboard\/merge_requests$)/.test(path) || path.includes("..") || path.includes("?") || path.includes("#")) return { ok: false, error: "invalid_response" };
     if (mutation) {
       const stateUpdate = mutation.method === "PUT" && Object.keys(query).length > 0;
@@ -99,7 +104,14 @@ export function createGongfengClient() {
       const milestoneRoute = mutation.method === "POST" ? /^\/projects\/\d+\/milestones$/.test(path) : /^\/projects\/\d+\/milestones\/\d+$/.test(path);
       const milestoneBody = z.object({ title: z.string().trim().min(1).max(255), description: z.string().max(100000).optional(), due_date: z.string().max(10).optional(), state_event: z.enum(["active", "close"]).optional() }).strict();
       const linkRoute = mutation.method === "PUT" && /^\/projects\/\d+\/(?:issues|merge_request)\/\d+$/.test(path);
-      if (milestoneRoute) {
+      const issueRoute = mutation.method === "POST" ? /^\/projects\/\d+\/issues$/.test(path) : mutation.method === "PUT" && /^\/projects\/\d+\/issues\/\d+$/.test(path);
+      const issueBody = z.object({ title: z.string().trim().min(1).max(255).optional(), description: z.string().max(100000).optional(), confidential: z.boolean().optional(), state_event: z.enum(["close", "reopen"]).optional(), milestone_id: z.number().int().positive().nullable().optional(),assignee_ids:z.string().max(200).refine(v=>v===""||/^\d+(?:,\d+){0,9}$/.test(v)).optional(),labels:z.string().max(2560).optional(),priority:z.number().int().min(0).max(5).optional(),resolve_state:z.enum(["resolved","accepted","denied"]).optional() }).strict().refine(v => Object.keys(v).length > 0);
+      const issueNoteRoute=mutation.method==="POST"?/^\/projects\/\d+\/issues\/\d+\/notes$/.test(path):mutation.method==="PUT"&&/^\/projects\/\d+\/issues\/\d+\/notes\/\d+$/.test(path);
+      if(issueNoteRoute){
+        if(!z.object({body:z.string().trim().min(1).max(100000)}).strict().safeParse(mutation.body).success)return {ok:false,error:"invalid_response"};
+      } else if (issueRoute) {
+        if (!issueBody.safeParse(mutation.body).success || mutation.method === "POST" && !z.object({ title: z.string().min(1) }).safeParse(mutation.body).success) return { ok: false, error: "invalid_response" };
+      } else if (milestoneRoute) {
         if (mutation.method === "DELETE" ? mutation.body !== undefined : !milestoneBody.safeParse(mutation.body).success) return { ok: false, error: "invalid_response" };
       } else if (linkRoute && stateUpdate) {
         if (!z.object({ state_event: z.enum(["close", "reopen"]) }).strict().safeParse(query).success || !z.object({}).strict().safeParse(mutation.body).success) return { ok: false, error: "invalid_response" };
@@ -115,7 +127,9 @@ export function createGongfengClient() {
     const controller = new AbortController();
     const abort = () => controller.abort();
     lifetime.signal.addEventListener("abort", abort, { once: true });
-    if (lifetime.signal.aborted) abort();
+    const callerSignal = connectionScope.getStore()?.signal;
+    callerSignal?.addEventListener("abort", abort, { once: true });
+    if (lifetime.signal.aborted || callerSignal?.aborted) abort();
     const deadline = Date.now() + 10_000;
     const timer = setTimeout(abort, 10_000);
     try {
@@ -152,7 +166,7 @@ export function createGongfengClient() {
       }
       return { ok: false, error: "network_error" };
     } catch { return { ok: false, error: "network_error" }; }
-    finally { clearTimeout(timer); lifetime.signal.removeEventListener("abort", abort); }
+    finally { clearTimeout(timer); lifetime.signal.removeEventListener("abort", abort); callerSignal?.removeEventListener("abort", abort); }
   }
 
   async function verify(siteUrl: string, token: string) {
@@ -166,7 +180,8 @@ export function createGongfengClient() {
     // Local writes and connection switches share a queue so an operation stays on one site.
     exclusive: serialize,
     configurationKey,
-    withConfiguration<T>(key: string, operation: () => Promise<T>, active = () => true) { return connectionScope.run({ key, active }, operation); },
+    withConfiguration<T>(key: string, operation: () => Promise<T>, active = () => true, signal?: AbortSignal, authorizeWrite?: () => Promise<boolean>) { return connectionScope.run({ key, active, signal, authorizeWrite }, operation); },
+    get signal() { return connectionScope.getStore()?.signal; },
     onConfigurationChange(listener: () => Promise<void>) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     async siteUrl() { return (await readCredentials())?.activeSite ?? legacySite; },
     async session(expectedSite?: string) {
