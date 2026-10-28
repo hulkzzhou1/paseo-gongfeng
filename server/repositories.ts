@@ -58,9 +58,10 @@ export function registerRepositories(server: Pick<PluginServerContext, "handle">
     catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return []; throw error; }
   }
   async function write(records: Binding[] | z.infer<typeof managedRepositorySchema>[], target = filename) {
+    if (api.signal?.aborted) throw new Error("Operation canceled");
     await mkdir(directory, { recursive: true, mode: 0o700 });
     const temporary = join(directory, `.repositories-${randomUUID()}`);
-    try { await writeFile(temporary, JSON.stringify(records), { flag: "wx", mode: 0o600 }); await rename(temporary, target); }
+    try { await writeFile(temporary, JSON.stringify(records), { flag: "wx", mode: 0o600, signal: api.signal }); if (api.signal?.aborted) throw new Error("Operation canceled"); await rename(temporary, target); }
     finally { await rm(temporary, { force: true }).catch(() => {}); }
   }
   async function remember(id: string, siteUrl: string, repository: Binding["repository"]) {
@@ -158,7 +159,7 @@ export function registerRepositories(server: Pick<PluginServerContext, "handle">
       await write(bindings.filter(b => b.daemonId !== id || b.instance !== storedInstance(session.siteUrl) || b.projectId !== input.projectId)); return { ok: true as const };
     } catch { return { ok: false as const, error: "storage_error" as const }; }
   })));
-  async function canInjectMcp(cwd: string, context: PluginHandlerContext): Promise<boolean> {
+  async function canUseAgentTools(cwd: string, context: PluginHandlerContext): Promise<boolean> {
     try {
       if (!isAbsolute(cwd)) return false;
       const id = await daemonId(), siteUrl = await api.siteUrl();
@@ -192,5 +193,5 @@ export function registerRepositories(server: Pick<PluginServerContext, "handle">
       return result.ok && result.bindings.some(b => b.projectId === projectId && b.status === "valid");
     } catch { return false; }
   }
-  return { bind, list, managed, canInjectMcp };
+  return { bind, list, managed, canUseAgentTools };
 }

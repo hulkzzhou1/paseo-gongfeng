@@ -73,9 +73,9 @@ beforeEach(async () => {
   process.env.PASEO_HOME = home;
   await writeFile(join(home, "server-id"), "board-test-daemon");
   handlers = new Map();
-  cleanup = contribute({ handle(contract, handler) {
+  cleanup = contribute({ before() { return () => {}; }, registerSettings(definition) { return { read: async () => ({ status: "ready" as const, revision: "test", values: definition.schema.parse({}) }), subscribe: () => () => {} }; }, handle(contract, handler) {
     handlers.set(contract.name, (input) => handler(contract.input.parse(input), { paseo: { projects: { list: async () => ({ projects: ["local-a", "local-b"].map(projectId => ({ projectId, projectDisplayName: projectId, projectRootPath: home })) }) } } } as never));
-  } } as PluginServerContext);
+  } } satisfies Pick<PluginServerContext,"handle"|"registerSettings"|"before"> as unknown as PluginServerContext);
 });
 afterEach(async () => {
   cleanup(); mock.restoreAll();

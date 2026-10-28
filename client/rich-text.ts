@@ -1,10 +1,15 @@
-import { descriptionBlocks, descriptionLink, type DescriptionBlock } from "./description-blocks.ts";
+import { descriptionBlocks, descriptionExcerpt, descriptionLink, type DescriptionBlock } from "./description-blocks.ts";
 
 export type RichToken = { kind: "text" | "code"; text: string }
   | { kind: "strong" | "emphasis"; children: RichToken[] }
   | { kind: "link"; href: string; children: RichToken[] }
   | { kind: "image"; src: string; alt: string };
 export type RichBlock = DescriptionBlock | { kind: "rule"; text: string };
+
+export function richExcerpt(source: string): string {
+  const plain = (tokens: RichToken[]): string => tokens.map(token => "children" in token ? plain(token.children) : token.kind === "image" ? token.alt : token.text).join("");
+  return descriptionExcerpt(richBlocks(source).map(block => block.kind === "table" ? [block.headers, ...block.rows].flat().map(cell => plain(richInline(cell))).join(" ") : block.kind === "code" ? block.text : plain(richInline(block.text))).join(" "));
+}
 
 function entities(text: string): string {
   const named: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", ndash: "–", mdash: "—", hellip: "…" };

@@ -16,7 +16,7 @@ const account = { id: 7, username: "test", name: "Test" };
 const base = { accountId: 7, projectId: 10 };
 const milestone = { id: 100, iid: 2, project_id: 10, title: "Release", description: "**Goals**", state: "active", due_date: "2030-01-02", updated_at: "2026-10-23T00:00:00Z" };
 async function rpc<T>(contract: { name: string; input: ZodType; output: ZodType<T> }, input: unknown) { const handler = handlers.get(contract.name); assert(handler, `Missing RPC ${contract.name}`); return contract.output.parse(await handler(contract.input.parse(input))); }
-beforeEach(async () => { home = await mkdtemp(join(tmpdir(), "gongfeng-milestones-")); oldHome = process.env.PASEO_HOME; process.env.PASEO_HOME = home; await writeFile(join(home, "server-id"), "test-daemon"); handlers = new Map(); cleanup = contribute({ before() { return () => {}; }, handle(contract, handler) { handlers.set(contract.name, input => handler(contract.input.parse(input), {} as never)); } } satisfies Pick<PluginServerContext, "handle" | "before"> as unknown as PluginServerContext); });
+beforeEach(async () => { home = await mkdtemp(join(tmpdir(), "gongfeng-milestones-")); oldHome = process.env.PASEO_HOME; process.env.PASEO_HOME = home; await writeFile(join(home, "server-id"), "test-daemon"); handlers = new Map(); cleanup = contribute({ registerSettings(definition) { return { read: async () => ({ status: "ready" as const, revision: "test", values: definition.schema.parse({}) }), subscribe: () => () => {} }; }, before() { return () => {}; }, handle(contract, handler) { handlers.set(contract.name, input => handler(contract.input.parse(input), {} as never)); } } satisfies Pick<PluginServerContext, "handle" | "before" | "registerSettings"> as unknown as PluginServerContext); });
 afterEach(async () => { cleanup(); mock.restoreAll(); if (oldHome === undefined) delete process.env.PASEO_HOME; else process.env.PASEO_HOME = oldHome; await rm(home, { recursive: true, force: true }); });
 async function connect(respond: (url: URL, init?: RequestInit) => Response | Promise<Response>) {
   mock.method(globalThis, "fetch", async (url: string | URL | Request, init?: RequestInit) => {
@@ -40,6 +40,26 @@ test("汇总仅包含已添加仓库，局部无权限不清空成功结果，�
   assert.deepEqual(await rpc(milestoneDetail, { ...base, projectId: 999, milestoneId: 100 }), { ok: false, error: "stale_binding" });
 });
 
+test("里程碑查询不限制创建人；同仓库切换账号后仍查询仓库的全部里程碑", async () => {
+  const queries: URL[] = [];
+  await connect(url => {
+    queries.push(url);
+    return Response.json([{ ...milestone, author: { id: 7 } }], { headers: { "X-Next-Page": "" } });
+  });
+  const first = await rpc(milestonesPage, { accountId: 7, state: "all" }); assert(first.ok);
+  const originalFetch = globalThis.fetch;
+  mock.method(globalThis, "fetch", async (url: string | URL | Request, init?: RequestInit) => new URL(String(url)).pathname === "/api/v3/user" ? Response.json({ id: 8, username: "other", name: "Other" }) : originalFetch(url, init));
+  await rpc(saveConnection, { token: "other-test-only-token" });
+  const second = await rpc(milestonesPage, { accountId: 8, state: "all" }); assert(second.ok);
+  assert.deepEqual(second.items, first.items);
+  assert.equal(second.items[0].id, 100);
+  assert.equal(queries.length, 2);
+  for (const url of queries) {
+    assert.equal(url.pathname, "/api/v3/projects/10/milestones");
+    assert.deepEqual([...url.searchParams.keys()].sort(), ["order_by", "page", "per_page", "sort"]);
+  }
+});
+
 
 test("里程碑创建编辑清空日期、关闭重开及删除，经回读确认且拒绝旧版本", async () => {
   let current: Record<string, unknown> | null = { ...milestone }; const writes: { method?: string; body: Record<string, unknown> }[] = [];
@@ -60,6 +80,26 @@ test("里程碑创建编辑清空日期、关闭重开及删除，经回读确�
   const closed = await rpc(saveMilestone, { ...ref, revision: edited.milestone.revision, title: "Renamed", description: "", dueDate: null, stateEvent: "close" }); assert(closed.ok); assert.equal(closed.milestone.state, "closed");
   const reopened = await rpc(saveMilestone, { ...ref, revision: closed.milestone.revision, title: "Renamed", description: "", dueDate: null, stateEvent: "active" }); assert(reopened.ok); assert.equal(reopened.milestone.state, "active");
   assert.deepEqual(await rpc(deleteMilestone, { ...ref, revision: reopened.milestone.revision, title: "Renamed" }), { ok: true });
+});
+
+test("截断描述不能回写覆盖完整里程碑，省略描述仍可编辑标题", async () => {
+  const description = "x".repeat(100000) + "必须保留的末尾";
+  let current = { ...milestone, description };
+  await connect((_url, init) => {
+    if (init?.method === "PUT") current = { ...current, ...JSON.parse(String(init.body)) };
+    return Response.json(current);
+  });
+  const reference = { ...base, milestoneId: milestone.id };
+  const before = await rpc(milestoneDetail, reference); assert(before.ok);
+  assert.equal(before.milestone.descriptionTruncated, true);
+  const refused = await rpc(saveMilestone, { ...reference, revision: before.milestone.revision, title: "Renamed", description: before.milestone.description });
+  assert.equal(refused.ok, false);
+  assert(!refused.ok); assert.equal(refused.error, "invalid_response");
+  const unchanged = await rpc(milestoneDetail, reference); assert(unchanged.ok);
+  assert.equal(unchanged.milestone.revision, before.milestone.revision);
+  const edited = await rpc(saveMilestone, { ...reference, revision: before.milestone.revision, title: "Renamed" }); assert(edited.ok);
+  assert.equal(edited.milestone.title, "Renamed");
+  assert.equal(edited.milestone.descriptionTruncated, true);
 });
 
 test("关联编辑只写里程碑字段，明确确认后迁移并使用JSON null取消，分别加载MR和议题", async () => {

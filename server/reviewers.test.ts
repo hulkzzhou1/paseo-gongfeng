@@ -60,7 +60,7 @@ beforeEach(async () => {
     if (method === "DELETE" && url.pathname.endsWith("/review/dismissals")) { if (failDismiss) return new Response("upstream-private", { status: 403 }); people = people.filter(p => p.id !== Number(url.searchParams.get("reviewer_id"))); return new Response(null, { status: 204 }); }
     throw new Error("Unexpected test request");
   });
-  handlers = new Map(); stop = contribute({ handle(contract, handler) { handlers.set(contract.name, input => handler(input as never, {} as never)); } } as PluginServerContext);
+  handlers = new Map(); stop = contribute({ before() { return () => {}; }, registerSettings(definition) { return { read: async () => ({ status: "ready" as const, revision: "test", values: definition.schema.parse({}) }), subscribe: () => () => {} }; }, handle(contract, handler) { handlers.set(contract.name, input => handler(input as never, {} as never)); } } satisfies Pick<PluginServerContext,"handle"|"registerSettings"|"before"> as unknown as PluginServerContext);
   await rpc(saveConnection, { siteUrl: reference.siteUrl, token: "test-only-token" });
 });
 afterEach(async () => { stop?.(); mock.restoreAll(); if (previousHome === undefined) delete process.env.PASEO_HOME; else process.env.PASEO_HOME = previousHome; await rm(home, { recursive: true, force: true }); });

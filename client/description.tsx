@@ -35,11 +35,20 @@ export function RichText({ source, url, theme, emptyText = "无内容。" }: { s
     }
   });
   return <View testID="gongfeng-rich-text" onLayout={event => setWidth(event.nativeEvent.layout.width)} style={{ gap: 10, minWidth: 0 }}>
-    {blocks.slice(0, limit).map((block, index) => block.kind === "rule" ? <View key={index} style={{ height: 1, backgroundColor: c.border, marginVertical: 4 }} /> : block.kind === "code" ? <View key={index} style={[styles.panel, { backgroundColor: c.surface1 }]}>
+    {blocks.slice(0, limit).map((block, index) => block.kind === "table" ? <View key={index} style={{ gap: 6 }}>
+      <ScrollView horizontal accessibilityLabel="描述表格，可横向滚动" style={{ maxWidth: "100%" }}>
+        <View style={{ borderWidth: 1, borderColor: c.border, borderRadius: 6, overflow: "hidden" }}>
+          {[block.headers, ...block.rows.slice(0, limit)].map((row, rowIndex) => <View key={rowIndex} style={{ flexDirection: "row", backgroundColor: rowIndex === 0 ? c.surface2 : rowIndex % 2 ? c.surface0 : c.surface1 }}>
+            {block.headers.map((_, column) => <Text key={column} selectable accessibilityRole={rowIndex === 0 ? "header" : undefined} style={{ color: c.foreground, width: Math.max(160, Math.min(280, width / block.headers.length)), padding: 10, fontSize: 13, lineHeight: 22, textAlign: block.alignments[column], fontWeight: rowIndex === 0 ? "600" : "400", borderTopWidth: rowIndex ? 1 : 0, borderLeftWidth: column ? 1 : 0, borderColor: c.border }}>{render(richInline(row[column] ?? "", url))}</Text>)}
+          </View>)}
+        </View>
+      </ScrollView>
+      {block.rows.length > limit ? <Action theme={theme} label="继续显示表格行" onPress={() => setLimit(value => value + 100)} /> : null}
+    </View> : block.kind === "rule" ? <View key={index} style={{ height: 1, backgroundColor: c.border, marginVertical: 4 }} /> : block.kind === "code" ? <View key={index} style={[styles.panel, { backgroundColor: c.surface1 }]}>
       {block.marker ? <Text style={[styles.muted, { paddingHorizontal: 10, paddingTop: 6 }]}>{block.marker}</Text> : null}
       <ScrollView horizontal><Text selectable style={{ color: c.foreground, fontFamily: mono, fontSize: 12, lineHeight: 20, padding: 10 }}>{block.text || " "}</Text></ScrollView>
     </View> : <View key={index} style={{ flexDirection: "row", gap: 8, ...(block.kind === "quote" ? { borderLeftWidth: 3, borderColor: c.border, paddingLeft: 10 } : {}) }}>
-      {block.kind === "list" ? <Text style={styles.text}>{block.marker}</Text> : null}
+      {block.kind === "list" ? <Text accessibilityRole={block.checked === undefined ? undefined : "checkbox"} accessibilityState={block.checked === undefined ? undefined : { checked: block.checked, disabled: true }} accessibilityLabel={block.checked === undefined ? undefined : block.checked ? "已完成" : "未完成"} style={styles.text}>{block.checked === undefined ? block.marker : block.checked ? "☑" : "☐"}</Text> : null}
       <Text selectable accessibilityRole={block.kind === "heading" ? "header" : undefined} style={{ color: c.foreground, flex: 1, minWidth: 0, fontSize: block.kind === "heading" ? block.level === 1 ? 20 : block.level === 2 ? 17 : 15 : 13, lineHeight: 22, fontWeight: block.kind === "heading" ? "600" : "400" }}>{render(richInline(block.text, url))}</Text>
     </View>)}
     {!blocks.length ? <Text style={styles.muted}>{emptyText}</Text> : null}

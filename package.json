@@ -25,11 +25,14 @@
     "diagnose:process": "node scripts/process-status.ts"
   },
   "devDependencies": {
-    "@getpaseo/plugin": "0.12.0",
+    "@getpaseo/plugin": "file:.scratch/agent-tools/sdk/getpaseo-plugin-0.13.2-main-6b7d49f0.tgz",
+    "@modelcontextprotocol/sdk": "1.32.2",
     "@tanstack/react-query": "^5.90.11",
     "@types/node": "^24.0.0",
     "@types/react": "~19.2.0",
+    "happy-dom": "21.0.4",
     "react": "19.1.0",
+    "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "typescript": "^5.9.3",
     "zod": "^4.4.3"
@@ -38,8 +41,5 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/hulkzzhou1/paseo-gongfeng.git"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "1.32.2"
   }
 }

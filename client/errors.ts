@@ -1,4 +1,7 @@
 export const errorMessages: Record<string, string> = {
+  stale_issue: "议题已变化，请刷新后重新编辑。",
+  stale_note: "评论已变化，请刷新后重新编辑。",
+  confirmation_required: "将私密议题改为普通需要单独确认。",
   stale_milestone: "里程碑内容或关联已变化，请刷新后重新操作。",
   outcome_unknown: "操作结果不确定，请刷新核对后再操作，避免重复提交。",
   partial_update: "部分更改未完成，请刷新并核对实际结果。",
