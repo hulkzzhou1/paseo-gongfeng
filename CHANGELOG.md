@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0 — 2026-10-28
+
+- Add issue browsing, editing, state changes and comments.
+- Add compact workbench tables, floating details, retained navigation state and configurable refresh.
+- Replace the plugin HTTP MCP service with 35 project-scoped native Agent tools, off by default. Remove old saved Gongfeng MCP connections or create a new Agent.
+- Prevent truncated milestone descriptions from overwriting full remote content; confirm draft navigation; retain loaded rows after transient pagination errors; unlock uncertain issue actions only after an explicit successful refresh.
+- Require Paseo 0.14.0-beta.1 or later compatible versions and use its published SDK. Paseo 0.13.2 stable users should remain on plugin v0.3.0. No runtime dependencies or install build step.
+
+Validation: TypeScript and 203 automated tests. Native mobile clients, public SaaS accounts and real MR writes remain incompletely verified.
+
 ## 0.3.0 — 2026-10-25
 
 - Add an opt-in local HTTP MCP service exposing 27 explicit Gongfeng tools. UI RPC and MCP share the same business handlers, credentials and write queues.

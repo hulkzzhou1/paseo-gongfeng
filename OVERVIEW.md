@@ -14,7 +14,7 @@ Browse added repositories together or filter one repository, state, author/assig
 
 ## Setup
 
-Requires Paseo main with defineAgentTool (deployed commit 6b7d49f0, version label 0.13.2; the version number alone is insufficient), a Gongfeng site compatible with the OpenAPI v3 endpoints used by this plugin, and network access from the daemon to that site. Set the HTTPS site root and a Private Token in the plugin's connection settings. The daemon uses one active Gongfeng account, shared by its authorized clients. Credentials and repository associations are retained separately for each site. Compatibility with every Gongfeng deployment, the public SaaS account flow and native mobile clients has not been fully verified.
+Requires Paseo 0.14.0-beta.1 or a later compatible release with native Agent tools (Paseo 0.13.2 stable is not supported), a Gongfeng site compatible with the OpenAPI v3 endpoints used by this plugin, and network access from the daemon to that site. Set the HTTPS site root and a Private Token in the plugin's connection settings. The daemon uses one active Gongfeng account, shared by its authorized clients. Credentials and repository associations are retained separately for each site. Compatibility with every Gongfeng deployment, the public SaaS account flow and native mobile clients has not been fully verified.
 
 Add accessible repositories, then associate them with existing local Paseo projects. One repository can map to multiple projects; each project maps to at most one repository. Cloning and registering a new project requires local Git, the Paseo CLI, and separately configured noninteractive SSH access to the site host on the standard SSH port. The target parent directory must exist. Submodules and LFS objects are not automatically downloaded. The plugin has no standalone MCP service or runtime dependencies. It does not install Git, the Paseo CLI or provider executables.
 
@@ -30,13 +30,13 @@ After confirmation, you can close an open MR or reopen a closed MR. Reopening ma
 
 The plugin does not launch Agent Review, merge requests or trigger pipelines. CI shows commit check summaries rather than full pipeline logs. TAPD links are generated only for recognized deployments; other sites retain the returned association data and report that a link is unavailable.
 
-## Optional Agent tools (unpublished)
+## Optional Agent tools
 
 The host-scoped Agent tools switch is off by default and preserves the previous switch preference. The agent.session_open hook attaches 35 gongfeng_-prefixed tools only to projects with valid Gongfeng associations on the current host and site, including their worktrees and subdirectories. Unassociated, stale, ambiguous and history-only sessions receive no tools. Calls recheck association and connection, share UI business handlers and write queues, and require explicit authorization and confirm:true for writes. The flag itself does not show an approval dialog.
 
 Paseo owns tool delivery. This plugin no longer opens an HTTP listener or persists Agent MCP connections. Reopen an Agent session after enabling tools or changing connections; no Agent is proactively restarted. Disabling, stopping, credential rotation or invalid association rejects old calls. Previously saved gongfeng-workbench MCP entries are not rewritten: remove them manually or create a new Agent.
 
-Tokens stay in the plugin and never enter tool schemas, outputs or Agent configuration. Results may be processed by the calling model provider. Canceled or uncertain writes must be read back before retrying. This migration is local only: no release or community submission, model call or native mobile acceptance.
+Tokens stay in the plugin and never enter tool schemas, outputs or Agent configuration. Results may be processed by the calling model provider. Canceled or uncertain writes must be read back before retrying. Native mobile clients and real MR writes have not been fully verified.
 
 ## Browsing and refresh
 

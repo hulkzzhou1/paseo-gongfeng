@@ -22,12 +22,10 @@
 
 ## 安装与配置
 
-本地开发分支正在迁移至 Paseo 主线的 `defineAgentTool`／`agent.session_open`，需要包含该接口的主线构建（当前部署：6b7d49f0，版本标识 0.13.2）。npm 已发布的同版本 SDK 尚未包含接口，因此开发使用锁定的本地 SDK 快照；不能将版本号本身视为兼容保证。要求本机 Git、Paseo CLI，以及 daemon 能访问所填工蜂站点。插件属于可信代码，安装前请审阅源码。
-
-已发布 v0.3.0（不含本地迁移）的安装方式：
+v0.4.0 要求 Paseo 0.14.0-beta.1 或后续兼容版本，使用公开 SDK 的 `defineAgentTool`／`agent.session_open`。Paseo 0.13.2 稳定版不包含所需接口，请继续使用 v0.3.0，或先升级宿主。开发依赖固定为公开 npm SDK 0.14.0-beta.1。要求本机 Git、Paseo CLI，以及 daemon 能访问所填工蜂站点。插件属于可信代码，安装前请审阅源码。
 
 ```sh
-paseo plugin install github:hulkzzhou1/paseo-gongfeng --ref v0.3.0
+paseo plugin install github:hulkzzhou1/paseo-gongfeng --ref v0.4.0
 ```
 
 1. 打开工作台右上角“工蜂设置”，填写站点根地址（例如 `https://code.example.com`），不含 `/api/v3` 或仓库路径。
@@ -72,11 +70,11 @@ MR 概览支持确认后关闭开放 MR、重新打开已关闭 MR；重开可�
 
 开启或切换连接后重新打开 Agent 会话以取得新定义；不主动重启正在运行的 Agent。关闭开关、插件停止、凭据轮换或关联失效后，旧工具调用会被拒绝；取消可能发生在远端写入之后，须回读结果，禁止自动重试。旧 Agent 已保存的 `gongfeng-workbench` MCP 连接不自动改写，请移除旧连接或新建 Agent，避免访问退役端点。
 
-此迁移为开发版本，当前通过 PR 审阅，尚未发布新版或提交社区。现有 v0.3.0 标签仍采用原 MCP 方式；历史记录见 [MCP 适配](docs/mcp-adaptation.md)，本轮规格见 [.scratch/agent-tools/spec.md](.scratch/agent-tools/spec.md)。
+v0.4.0 使用原生 Agent 工具，v0.3.0 标签仍采用原 MCP 方式；历史记录见 [MCP 适配](docs/mcp-adaptation.md)，本轮规格见 [.scratch/agent-tools/spec.md](.scratch/agent-tools/spec.md)。
 
-## 当前本地开发版本
+## v0.4.0
 
-议题能力与工作台重构已在本机目录安装中重载，尚未发布到上面的 v0.3.0 安装标签。工作台刷新和界面验收见 [重构验收](docs/workbench-refactor-validation.md)。验证、删除契约缺口和部署限制见 [议题验收记录](docs/issues-validation.md)。列表搜索使用各仓库接口，只对已取回数据排序；未知写入结果不自动重试，先刷新核对。人员和新标签验证各扫描至多 2000 个仓库候选，超过范围明确拒绝，不能把候选未找到当作有权写入。
+v0.4.0 包含议题能力、工作台重构与四项审计修复。工作台刷新和界面验收见 [重构验收](docs/workbench-refactor-validation.md)。验证、删除契约缺口和部署限制见 [议题验收记录](docs/issues-validation.md)。列表搜索使用各仓库接口，只对已取回数据排序；未知写入结果不自动重试，先刷新核对。人员和新标签验证各扫描至多 2000 个仓库候选，超过范围明确拒绝，不能把候选未找到当作有权写入。
 
 
 ## 工作台浏览与刷新

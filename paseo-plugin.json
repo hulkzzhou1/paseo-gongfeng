@@ -3,7 +3,7 @@
   "name": "工蜂",
   "description": "Manage Gongfeng repositories, merge requests, issues and milestones with compact tables, floating details and configurable refresh in Paseo.",
   "requirements": {
-    "paseo": ">=0.13.2"
+    "paseo": ">=0.14.0-beta.1"
   },
   "translations": {
     "zh-CN": {
