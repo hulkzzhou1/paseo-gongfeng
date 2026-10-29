@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Edit merge request titles and Markdown descriptions from the detail view and the `gongfeng_edit_merge_request` Agent tool. Writes preserve omitted fields, check content revisions, protect truncated descriptions and read back results without automatic retries.
+
 ## 0.4.0 — 2026-10-28
 
 - Add issue browsing, editing, state changes and comments.

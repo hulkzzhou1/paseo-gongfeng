@@ -66,8 +66,8 @@ test("initial settings read failure cannot overwrite a newer enabled subscriptio
   } finally { controller.dispose(); }
 });
 
-test("35 namespaced tools keep strict schemas, UI RPC results and credentials private", async () => {
-  assert.equal(tools.length, 35); assert.equal(new Set(tools.map(t => t.name)).size, 35);
+test("36 namespaced tools keep strict schemas, UI RPC results and credentials private", async () => {
+  assert.equal(tools.length, 36); assert.equal(new Set(tools.map(t => t.name)).size, 36);
   assert(tools.every(t => /^gongfeng_[a-z0-9_]+$/.test(t.name)));
   assert(!tools.some(t => /settings|save_connection|arbitrary_rpc/.test(t.name)));
   assert.deepEqual((await call("list_repositories", {})).structuredContent, { result: await service.execute(listManagedRepositories, {}) });
@@ -135,7 +135,7 @@ test("session tools preserve other settings, ignore history and revoke on disabl
     await controller.ready; assert.equal(await hook({ request }, context), request);
     notify({ status: "ready", values: { enabled: true } });
     const history = { ...request, purpose: "history" }; assert.equal(await hook({ request: history }, context), history);
-    const attached = await hook({ request }, context); assert.equal(attached.tools.length, 36);
+    const attached = await hook({ request }, context); assert.equal(attached.tools.length, 37);
     assert.equal(attached.tools[0], request.tools[0]); assert.deepEqual(attached.env, request.env); assert.equal(JSON.stringify(request), snapshot);
     const tool: AgentToolDefinition = attached.tools.find((t: AgentToolDefinition) => t.name === "gongfeng_list_repositories");
     const args = tool.input.parse({ input: {} }); assert.equal((await tool.execute(args, context)).isError, undefined);
@@ -247,4 +247,29 @@ test("canceling a completed local clone retains its record without launching pro
     assert((await lstat(targetPath)).isDirectory()); await assert.rejects(lstat(marker), { code: "ENOENT" });
     const records = listCloneOperations.output.parse(await service.execute(listCloneOperations, {})); assert(records.ok); assert.equal(records.operations[0].stage, "cloned");
   } finally { if (previousPath === undefined) delete process.env.PATH; else process.env.PATH = previousPath; }
+});
+
+
+test("MR edits require confirmation and share content revisions and global IDs with UI", async () => {
+  let mr = { id: 100, iid: 5, target_project_id: 10, source_project_id: 42, title: "Before", description: "Keep", state: "opened", source_branch: "feature", target_branch: "main" };
+  let writes = 0;
+  respond = (url, init) => {
+    assert.equal(url.pathname, "/api/v3/projects/10/merge_request/100");
+    if (init.method === "PUT") {
+      writes++;
+      assert.deepEqual(JSON.parse(String(init.body)), { title: "After" });
+      mr = { ...mr, title: "After" };
+    }
+    return Response.json(mr);
+  };
+  const ref = { siteUrl, accountId: 7, projectId: 10, mrId: 100 };
+  const before = mrDetail.output.parse(await service.execute(mrDetail, ref)); assert(before.ok);
+  const input = { ...ref, revision: before.detail.editRevision, title: "After" };
+  await assert.rejects(call("edit_merge_request", input)); assert.equal(writes, 0);
+  const result = await call("edit_merge_request", input, true);
+  const after = mrDetail.output.parse(await service.execute(mrDetail, ref)); assert(after.ok);
+  assert.deepEqual(result.structuredContent, { result: { ok: true, current: after.detail } });
+  assert.equal(writes, 1); assert.equal(after.detail.description, "Keep");
+  assert.equal((await call("edit_merge_request", input, true)).isError, true);
+  assert.equal(writes, 1);
 });

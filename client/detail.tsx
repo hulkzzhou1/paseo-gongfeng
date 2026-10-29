@@ -8,6 +8,7 @@ import { ExternalLink, SettingsCard, SettingsRow } from "@getpaseo/plugin/client
 import type { MilestoneReference } from "../shared/milestones.ts";
 import { mrChanges, mrDetail, mrNotes, mrRef, mrReview, type MrRef } from "../shared/detail.ts";
 import { MRStateActions } from "./mr-state.tsx";
+import { MREdit } from "./mr-edit.tsx";
 import { MRAdditions } from "./additions.tsx";
 import { errorMessages } from "./errors.ts";
 import { Modal } from "@getpaseo/plugin/client/react-native";
@@ -58,6 +59,7 @@ function DetailContent({ theme, layout, reference, onBack, drawer, focusReady = 
   return <View ref={drawerRoot} style={styles.page}>
     <View style={{ padding: layout.compact ? 12 : 20, gap: 10, borderBottomWidth: 1, borderColor: theme.colors.border }}>
       <View style={styles.toolbar}>{info ? <StateBadge theme={theme} state={info.state} /> : null}<View style={{ flex: 1 }} />
+        {info ? <MREdit theme={theme} reference={reference} detail={info} /> : null}
         <Action theme={theme} label={refreshing ? "刷新中…" : "刷新"} icon="RefreshCw" disabled={refreshing > 0} onPress={() => {
           void cache.refetchQueries({ queryKey: key, type: "active" });
         }} />
