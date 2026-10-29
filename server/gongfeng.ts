@@ -8,6 +8,7 @@ import { clearTimeout, setTimeout } from "node:timers";
 import { setTimeout as delay } from "node:timers/promises";
 import { z } from "zod";
 import { legacySite, siteUrlSchema } from "../shared/site.ts";
+import { mrEditBody } from "../shared/mr-edit.ts";
 import { accountSchema, tokenSchema } from "../shared/connection.ts";
 import { reviewEvent } from "../shared/reviewers.ts";
 import type { ApiError } from "../shared/api.ts";
@@ -116,7 +117,7 @@ export function createGongfengClient() {
       } else if (linkRoute && stateUpdate) {
         if (!z.object({ state_event: z.enum(["close", "reopen"]) }).strict().safeParse(query).success || !z.object({}).strict().safeParse(mutation.body).success) return { ok: false, error: "invalid_response" };
       } else if (linkRoute) {
-        if (!z.object({ milestone_id: z.number().int().positive().nullable() }).strict().safeParse(mutation.body).success) return { ok: false, error: "invalid_response" };
+        if (!z.object({ milestone_id: z.number().int().positive().nullable() }).strict().safeParse(mutation.body).success && !mrEditBody.safeParse(mutation.body).success) return { ok: false, error: "invalid_response" };
       } else {
         if (!allowed[mutation.method].test(path)) return { ok: false, error: "invalid_response" };
         if (mutation.method === "PUT" && !z.object({ reviewer_event: reviewEvent, summary: z.string().max(10000) }).strict().safeParse(mutation.body).success) return { ok: false, error: "invalid_response" };

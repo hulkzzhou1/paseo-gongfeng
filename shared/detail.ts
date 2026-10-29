@@ -15,6 +15,7 @@ export const mrDetailSchema = z.object({
   sourceSha: shaSchema.nullable(), targetSha: shaSchema.nullable(), baseSha: shaSchema.nullable(),
   milestone: milestoneSummary.nullable().optional(),
   stateRevision: z.string().regex(/^[a-f0-9]{64}$/),
+  editRevision: z.string().regex(/^[a-f0-9]{64}$/),
   updatedAt: z.string().nullable(), url: z.string().url().nullable(),
 });
 export const fileDiffSchema = z.object({

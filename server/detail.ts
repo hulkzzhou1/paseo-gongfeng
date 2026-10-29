@@ -37,6 +37,7 @@ export async function readDetail(session: GongfengSession, ref: MrRef): Promise<
     targetSha: shaSchema.safeParse(data.target_commit).success ? data.target_commit as string : null,
     milestone: data.milestone ? { id: data.milestone.id, iid: data.milestone.iid, projectId: data.milestone.project_id, title: data.milestone.title, state: data.milestone.state, dueDate: data.milestone.due_date ?? null } : null,
     stateRevision: createHash("sha256").update(JSON.stringify([session.siteUrl, session.account.id, data.id, data.iid, data.title, data.state, data.source_project_id, data.target_project_id, data.source_branch, data.target_branch, data.source_commit ?? null, data.updated_at ?? null])).digest("hex"),
+    editRevision: createHash("sha256").update(JSON.stringify([session.siteUrl, session.account.id, data.target_project_id, data.id, data.iid, data.title, data.description ?? ""])).digest("hex"),
     updatedAt: data.updated_at ?? null, url,
   } };
 }

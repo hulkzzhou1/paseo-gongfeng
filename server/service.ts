@@ -4,6 +4,7 @@ import { createGongfengClient } from "./gongfeng.ts";
 import { registerConnection } from "./connection.ts";
 import { registerDetail } from "./detail.ts";
 import { registerMrState } from "./mr-state.ts";
+import { registerMrEdit } from "./mr-edit.ts";
 import { registerReviewers } from "./reviewers.ts";
 import { registerAdditions } from "./additions.ts";
 import { registerRepositories } from "./repositories.ts";
@@ -23,6 +24,7 @@ export function createGongfengService() {
   registerDetail(registrar, api);
   registerReviewers(registrar, api);
   registerMrState(registrar, api);
+  registerMrEdit(registrar, api);
   registerAdditions(registrar, api);
   const repositories = registerRepositories(registrar, api);
   registerBoard(registrar, api, repositories);
